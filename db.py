@@ -49,7 +49,15 @@ CREATE INDEX IF NOT EXISTS idx_evento_episodio ON evento(episodio_id);
 
 
 def conectar(ruta_db: str | Path = "medtranscriptor.db") -> sqlite3.Connection:
-    con = sqlite3.connect(ruta_db)
+    # check_same_thread=False porque Streamlit corre cada rerun del script en
+    # un hilo distinto, y la conexion queda cacheada entre reruns. Sin esto
+    # salta "SQLite objects created in a thread can only be used in that same
+    # thread" apenas se interactua con la app.
+    #
+    # Es seguro en este uso: sqlite3 serializa los accesos y aca escribe un
+    # solo usuario por vez. Si alguna vez esto atiende varias sesiones que
+    # escriben en paralelo, hay que poner un lock alrededor de los INSERT.
+    con = sqlite3.connect(ruta_db, check_same_thread=False)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     con.executescript(_DDL)

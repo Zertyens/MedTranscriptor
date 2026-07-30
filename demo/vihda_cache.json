@@ -1,0 +1,28 @@
+[
+  {
+    "codigo": "NEUMONIA",
+    "nombre": "Neumonia asociada a ventilacion mecanica (NEU-ARM / NAR)",
+    "declarado_por": "Dr. Molina",
+    "cita_declaracion": "Lo interpreto como neumonia asociada a la ventilacion mecanica",
+    "cumplidos": [
+      {
+        "id": "radiologico_infiltrado",
+        "evidencia": "La radiografia de torax de hoy muestra un infiltrado nuevo en la base derecha que no estaba en la del lunes."
+      },
+      {
+        "id": "clinico_fiebre",
+        "evidencia": "Hoy hace un pico febril de 38.7."
+      },
+      {
+        "id": "laboratorio_leucocitos",
+        "evidencia": "Globulos blancos en 21.400."
+      }
+    ],
+    "faltantes": [
+      {
+        "id": "clinico_aspirado_purulento",
+        "que_falta": "Documentar la presencia de aspirado traqueal (AT) purulento."
+      }
+    ]
+  }
+]

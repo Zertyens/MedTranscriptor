@@ -26,6 +26,7 @@ from modelos import Evento
 from proyector import advertencias_fila, fila_a_valores, proyectar_fila
 
 CACHE = Path(__file__).parent / "demo" / "eventos_cache.json"
+CACHE_VIHDA = Path(__file__).parent / "demo" / "vihda_cache.json"
 DB = Path(__file__).parent / "medtranscriptor.db"
 
 VERDE, ROJO, AMARILLO, GRIS, NEGRITA, FIN = "\033[92m", "\033[91m", "\033[93m", "\033[90m", "\033[1m", "\033[0m"
@@ -50,7 +51,7 @@ def cargar_eventos_desde_gemma(episodio_id: str) -> list[Evento]:
             fecha_referencia=nota["fecha_referencia"],
             autor=nota["autor"],
             fuente="texto_gemma",
-            abiertas=gemma.instancias_abiertas(eventos),
+            eventos_previos=eventos,
         )
         print(f"{resultado.segundos}s -> {len(resultado.eventos)} eventos", end="")
         if resultado.rechazados:
@@ -62,6 +63,8 @@ def cargar_eventos_desde_gemma(episodio_id: str) -> list[Evento]:
             print(f"        {ROJO}rechazado:{FIN} {r['motivo'][:90]}")
         for frag in resultado.no_entendido:
             print(f"        {AMARILLO}no entendido:{FIN} {frag[:90]!r}")
+        for aviso in resultado.correcciones:
+            print(f"        {VERDE}correccion:{FIN} {aviso}")
         eventos.extend(resultado.eventos)
 
     CACHE.parent.mkdir(parents=True, exist_ok=True)
@@ -84,12 +87,73 @@ def cargar_eventos_desde_cache(episodio_id: str) -> list[Evento]:
     return eventos
 
 
+def verificar_infecciones(eventos: list[Evento], usar_cache: bool) -> list[dict]:
+    """Para cada infeccion declarada por el medico, revisa si el registro
+    documenta lo que VIHDA exige.
+
+    Ojo con el orden de las cosas: el medico YA declaro la infeccion antes de
+    que esto corra. Gemma no decide si hay infeccion, revisa si el registro la
+    sostiene. Si falta documentacion, SATI-Q puede rechazar el caso.
+
+    No se guarda en el evento: la completitud del registro cambia a medida que
+    llegan notas, asi que se recalcula igual que el resto de la proyeccion."""
+    import json as _json
+
+    criterios = _json.loads(
+        (Path(__file__).parent / "schema" / "vihda_criterios.json").read_text(encoding="utf-8")
+    )
+    declaradas = [
+        e for e in eventos
+        if e.tipo_evento == "evento_adverso"
+        and criterios.get(e.payload_json.get("codigo"), {}).get("_meta") is None
+        and e.payload_json.get("codigo") in criterios
+    ]
+    if not declaradas:
+        return []
+
+    if usar_cache and CACHE_VIHDA.exists():
+        return _json.loads(CACHE_VIHDA.read_text(encoding="utf-8"))
+
+    import gemma
+
+    # El registro clinico son las notas dictadas. NOTA: hoy el sistema guarda
+    # el fragmento citado (texto_crudo) pero no la nota completa. Para produccion
+    # habria que persistir la nota entera; aca se usan las de semilla.py.
+    registro = "\n\n".join(f"[{n['fecha_referencia']}] {n['texto']}" for n in semilla.NOTAS)
+
+    resultados = []
+    for evento in declaradas:
+        codigo = evento.payload_json["codigo"]
+        print(f"  verificando {codigo} contra criterios VIHDA... ", end="", flush=True)
+        v = gemma.verificar_vihda(codigo, registro)
+        print(f"{len(v['cumplidos'])} documentados, {len(v['faltantes'])} faltantes")
+        resultados.append({
+            "codigo": codigo,
+            "nombre": criterios[codigo]["nombre"],
+            "declarado_por": evento.autor,
+            "cita_declaracion": evento.texto_crudo,
+            **v,
+        })
+
+    CACHE_VIHDA.parent.mkdir(parents=True, exist_ok=True)
+    CACHE_VIHDA.write_text(_json.dumps(resultados, ensure_ascii=False, indent=2), encoding="utf-8")
+    return resultados
+
+
 def main() -> None:
     usar_cache = "--cache" in sys.argv
     con_resumen = "--resumen" in sys.argv
 
+    # La demo arranca de cero cada vez. Si la app Streamlit esta abierta tiene
+    # el archivo tomado y Windows no deja borrarlo: se avisa en castellano en
+    # vez de escupir un traceback.
     if DB.exists():
-        DB.unlink()
+        try:
+            DB.unlink()
+        except PermissionError:
+            print(f"{ROJO}No puedo borrar {DB.name}: hay otro proceso usandolo.{FIN}")
+            print("  Cerra la app (la ventana de MedTranscriptor) y volve a correr esto.")
+            sys.exit(1)
     con = db.conectar(DB)
 
     episodio = semilla.crear_episodio()
@@ -148,7 +212,23 @@ def main() -> None:
                     print(f"      {e.timestamp_clinico[:16]}  {e.tipo_evento:<19} {e.autor}")
                     print(f"          {GRIS}{e.texto_crudo[:66]!r}{FIN}")
 
-    titulo("5. VALIDACION DE LAS 49 REGLAS")
+    titulo("5. VERIFICACION VIHDA  (el medico declara, Gemma revisa el registro)")
+    verificaciones = verificar_infecciones(eventos, usar_cache)
+    if not verificaciones:
+        print("  (no hay infecciones declaradas en este episodio)")
+    for v in verificaciones:
+        print(f"\n  {NEGRITA}{v['nombre']}{FIN}")
+        print(f"  {GRIS}declarada por {v['declarado_por']}: {v['cita_declaracion'][:66]!r}{FIN}\n")
+        for c in v["cumplidos"]:
+            print(f"    {VERDE}[documentado]{FIN} {c['id']}")
+            print(f"        {GRIS}{c.get('evidencia', '')[:70]!r}{FIN}")
+        for c in v["faltantes"]:
+            print(f"    {ROJO}[FALTA]{FIN}       {c['id']}")
+            print(f"        {GRIS}{c.get('que_falta', '')[:70]}{FIN}")
+        if v["faltantes"]:
+            print(f"\n    {AMARILLO}Con documentacion incompleta, SATI-Q puede rechazar este caso.{FIN}")
+
+    titulo("6. VALIDACION DE LAS 49 REGLAS")
     hallazgos = validador.validar_fila(valores, advertencias_fila(proyeccion))
     errores = validador.errores(hallazgos)
     advertencias = validador.advertencias(hallazgos)
@@ -158,7 +238,7 @@ def main() -> None:
     for h in advertencias:
         print(f"    {AMARILLO}{str(h)[:110]}{FIN}")
 
-    titulo("6. CSV PARA SATI-Q")
+    titulo("7. CSV PARA SATI-Q")
     if errores:
         print(f"  {ROJO}No se exporta: hay errores de validacion.{FIN}")
     else:
@@ -170,7 +250,7 @@ def main() -> None:
         print(f"\n  {VERDE}Escrito en {destino}{FIN}")
 
     if con_resumen:
-        titulo("7. RESUMEN PARA EL PACIENTE Y SU FAMILIA  (Gemma explica)")
+        titulo("8. RESUMEN PARA EL PACIENTE Y SU FAMILIA  (Gemma explica)")
         import gemma
         texto = gemma.explicar_egreso(
             f"Hombre de {episodio.edad} anios. Estuvo {valores['ESTADIA']} dias en terapia intensiva.\n"

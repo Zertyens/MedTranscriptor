@@ -90,18 +90,18 @@ NOTAS = [
         "fecha_referencia": "2025-03-05",
         "autor": "Dra. Pereyra",
         "texto": (
-            "Mejor. Ayer a la tarde le sacamos la sonda nasogastrica. Hoy al mediodia lo extubo, "
-            "queda respirando espontaneamente. Le encontramos una escara sacra grado 2 en la "
-            "curacion de la manana. Hubo un tema con la familia el otro dia pero no viene al caso. "
-            "TISS 22."
+            "Mejor. Ayer a la tarde le sacamos la sonda nasogastrica y tambien la sonda vesical. "
+            "Hoy al mediodia lo extubo, queda respirando espontaneamente. Le encontramos una "
+            "escara sacra grado 2 en la curacion de la manana. Hubo un tema con la familia el "
+            "otro dia pero no viene al caso. TISS 22."
         ),
     },
     {
         "fecha_referencia": "2025-03-06",
         "autor": "Dr. Molina",
         "texto": (
-            "Corrijo lo que quedo anotado ayer: la sonda vesical se retiro hoy a la manana, "
-            "no el martes como figura. Paciente bien, tolera la alimentacion. TISS 18."
+            "Corrijo lo que anote ayer: la sonda vesical no se saco ayer, se retiro recien "
+            "hoy a la manana. Paciente bien, tolera la alimentacion. TISS 18."
         ),
     },
     {

@@ -96,6 +96,12 @@ CLAVES_PAYLOAD = {
     tipo: set(definicion["campos"]) for tipo, definicion in _EVENTOS_SCHEMA["payloads"].items()
 }
 
+# Textos con los que el modelo rellena campos opcionales en vez de omitirlos.
+_VALORES_VACIOS = {
+    "", "no mencionado", "no especificado", "no especifica", "desconocido",
+    "n/a", "na", "none", "null", "no aplica", "sin especificar", "no indicado",
+}
+
 
 class ErrorGemma(Exception):
     pass
@@ -107,6 +113,7 @@ class ResultadoTraduccion:
     no_entendido: list[str] = field(default_factory=list)
     rechazados: list[dict[str, Any]] = field(default_factory=list)
     descartes: list[str] = field(default_factory=list)
+    correcciones: list[str] = field(default_factory=list)
     respuesta_cruda: str = ""
     segundos: float = 0.0
 
@@ -257,7 +264,9 @@ def _normalizar_timestamp(valor: str) -> str:
     return valor.replace(" ", "T")
 
 
-def _normalizar_payload(tipo_evento: str, payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+def _normalizar_payload(
+    tipo_evento: str, payload: dict[str, Any], timestamp: str = ""
+) -> tuple[dict[str, Any], list[str]]:
     """Descarta las claves que no pertenecen a este tipo de evento y limpia
     los sub-objetos. Devuelve (payload_limpio, claves_descartadas)."""
     permitidas = CLAVES_PAYLOAD.get(tipo_evento, set())
@@ -268,6 +277,12 @@ def _normalizar_payload(tipo_evento: str, payload: dict[str, Any]) -> tuple[dict
         if clave not in permitidas or valor is None:
             if clave not in permitidas:
                 descartadas.append(f"{tipo_evento}.{clave}")
+            continue
+        # El modelo rellena los opcionales con textos tipo "no mencionado" en
+        # vez de omitirlos. Un campo que dice que no sabe es lo mismo que un
+        # campo ausente, y ademas queda feo en pantalla ("sonda vesical en no
+        # mencionado").
+        if isinstance(valor, str) and valor.strip().lower() in _VALORES_VACIOS:
             continue
         limpio[clave] = valor
 
@@ -283,6 +298,11 @@ def _normalizar_payload(tipo_evento: str, payload: dict[str, Any]) -> tuple[dict
     if tipo_evento == "evento_adverso":
         # La declaracion de infeccion es siempre del medico, nunca del modelo.
         limpio["adjudicado_por"] = "medico"
+
+    if tipo_evento == "tiss_diario" and not limpio.get("fecha") and timestamp:
+        # La fecha del TISS es la del propio evento: no hace falta que el
+        # modelo la repita, y si se la olvida Python la deriva.
+        limpio["fecha"] = timestamp[:10]
 
     return limpio, descartadas
 
@@ -315,6 +335,10 @@ REGLAS PARTICULARES
 - En el payload pone SOLO los campos que corresponden a ese tipo de evento.
 - timestamp_clinico siempre completo y literal: aaaa-mm-ddTHH:mm:ss
   (por ejemplo 2025-03-05T09:00:00). Nunca un texto descriptivo.
+- CORRECCIONES: si la nota corrige algo que se anoto antes ("corrijo lo de
+  ayer", "en realidad fue el jueves", "me equivoque"), emiti el evento con los
+  datos CORRECTOS y marca "corrige": true. Nunca emitas el dato viejo. El
+  sistema se encarga de anular el anterior: vos solo marcalo.
 
 TIPOS DE EVENTO: {tipos}
 DISPOSITIVOS: {dispositivos}
@@ -338,14 +362,28 @@ DISPOSITIVOS QUE YA ESTAN COLOCADOS EN ESTE PACIENTE
 Si la nota menciona que se retira uno de estos, usa EXACTAMENTE su instancia_id.
 Si menciona que se coloca uno nuevo, inventa el siguiente numero libre.
 
-FORMATO DE SALIDA. Devolve SOLO este JSON, sin texto antes ni despues:
+FORMATO DE SALIDA. Devolve SOLO este JSON, sin texto antes ni despues.
+El campo "corrige" es obligatorio: va en false salvo que ese evento corrija
+algo anotado antes.
 {{
   "eventos": [
     {{"tipo_evento": "...", "timestamp_clinico": "aaaa-mm-ddTHH:mm:ss",
-      "payload": {{}}, "confianza": 0.0, "texto_crudo": "fragmento literal"}}
+      "payload": {{}}, "confianza": 0.0, "texto_crudo": "fragmento literal",
+      "corrige": false}}
   ],
   "no_entendido": ["fragmentos que no pudiste mapear o fechar"]
-}}"""
+}}
+
+EJEMPLO DE TISS (la fecha es obligatoria en el payload):
+  {{"tipo_evento": "tiss_diario", "timestamp_clinico": "2025-03-04T12:00:00",
+    "payload": {{"fecha": "2025-03-04", "puntaje_manual": 30}},
+    "confianza": 0.9, "texto_crudo": "TISS 30", "corrige": false}}
+
+EJEMPLO DE CORRECCION. Nota: "corrijo lo de ayer, la sonda se saco hoy":
+  {{"tipo_evento": "dispositivo_fin", "timestamp_clinico": "2025-03-06T09:00:00",
+    "payload": {{"dispositivo": "SV", "instancia_id": "SV-1"}},
+    "confianza": 0.9, "texto_crudo": "la sonda vesical se retiro hoy",
+    "corrige": true}}"""
 
 
 def _sistema_traduccion(instancias_abiertas: dict[str, str] | None = None) -> str:
@@ -375,6 +413,60 @@ def _sistema_traduccion(instancias_abiertas: dict[str, str] | None = None) -> st
         ),
         instancias_abiertas=estado,
     )
+
+
+def _clave_correccion(evento: Evento) -> tuple:
+    """Que identifica 'la misma cosa' entre dos eventos, para poder decir que
+    uno corrige al otro."""
+    p = evento.payload_json
+    if evento.tipo_evento in ("dispositivo_inicio", "dispositivo_fin"):
+        return (evento.tipo_evento, p.get("dispositivo"), p.get("instancia_id"))
+    if evento.tipo_evento == "evento_adverso":
+        return (evento.tipo_evento, p.get("codigo"))
+    if evento.tipo_evento == "tiss_diario":
+        return (evento.tipo_evento, p.get("fecha"))
+    return (evento.tipo_evento,)
+
+
+def _resolver_correcciones(nuevos: list[tuple[Evento, bool]], previos: list[Evento]) -> list[str]:
+    """Gemma marca QUE evento es una correccion, pero no puede decir A CUAL
+    corrige: no conoce los ids, cada nota se procesa aislada. Ese vinculo lo
+    resuelve Python buscando el evento previo vigente que habla de la misma
+    cosa (mismo dispositivo e instancia, mismo codigo adverso, misma fecha
+    de TISS).
+
+    Sin esto la correccion no anula nada y quedan los dos datos vigentes, que
+    es exactamente el bug que tenia DIASSV en la demo."""
+    corregidos = {e.corrige_a_evento_id for e in previos if e.corrige_a_evento_id}
+    vigentes = [e for e in previos if e.id not in corregidos]
+    avisos: list[str] = []
+
+    for evento, es_correccion in nuevos:
+        if not es_correccion:
+            continue
+        clave = _clave_correccion(evento)
+        candidatos = [e for e in vigentes if _clave_correccion(e) == clave]
+        if not candidatos:
+            # Segunda pasada mas laxa: mismo tipo y mismo dispositivo, sin
+            # exigir que coincida la instancia.
+            candidatos = [
+                e for e in vigentes
+                if e.tipo_evento == evento.tipo_evento
+                and e.payload_json.get("dispositivo") == evento.payload_json.get("dispositivo")
+            ]
+        if not candidatos:
+            avisos.append(
+                f"{evento.tipo_evento} marcado como correccion pero no se encontro "
+                f"un evento previo que corrija: queda como evento nuevo"
+            )
+            continue
+        objetivo = max(candidatos, key=lambda e: e.timestamp_carga)
+        evento.corrige_a_evento_id = objetivo.id
+        avisos.append(
+            f"{evento.tipo_evento} corrige a {objetivo.id[:8]} "
+            f"({objetivo.timestamp_clinico[:16]} -> {evento.timestamp_clinico[:16]})"
+        )
+    return avisos
 
 
 def instancias_abiertas(eventos: list[Evento]) -> dict[str, str]:
@@ -445,6 +537,7 @@ def traducir_nota(
     autor: str,
     fuente: str = "texto_gemma",
     abiertas: dict[str, str] | None = None,
+    eventos_previos: list[Evento] | None = None,
 ) -> ResultadoTraduccion:
     """Convierte una nota de evolucion en eventos validados.
 
@@ -455,6 +548,10 @@ def traducir_nota(
     Los eventos que no pasan la validacion van a 'rechazados' con el motivo.
     Nunca se insertan a la fuerza ni se descartan sin dejar rastro."""
     import time
+
+    eventos_previos = eventos_previos or []
+    if abiertas is None and eventos_previos:
+        abiertas = instancias_abiertas(eventos_previos)
 
     inicio = time.time()
     crudo = _llamar(
@@ -470,14 +567,16 @@ def traducir_nota(
         segundos=round(time.time() - inicio, 1),
     )
 
+    marcados: list[tuple[Evento, bool]] = []
     for bruto in datos.get("eventos") or []:
         tipo = bruto.get("tipo_evento")
-        payload, descartes = _normalizar_payload(tipo, bruto.get("payload") or {})
+        ts = _normalizar_timestamp(bruto.get("timestamp_clinico", ""))
+        payload, descartes = _normalizar_payload(tipo, bruto.get("payload") or {}, ts)
         resultado.descartes.extend(descartes)
         try:
             evento = nuevo_evento(
                 episodio_id=episodio_id,
-                timestamp_clinico=_normalizar_timestamp(bruto.get("timestamp_clinico", "")),
+                timestamp_clinico=ts,
                 autor=autor,
                 tipo_evento=tipo,
                 payload_json=payload,
@@ -489,7 +588,10 @@ def traducir_nota(
             resultado.rechazados.append({"evento": bruto, "motivo": str(e)})
             continue
         resultado.eventos.append(evento)
+        marcados.append((evento, bool(bruto.get("corrige"))))
 
+    # Gemma marca cual evento corrige; Python resuelve a cual.
+    resultado.correcciones = _resolver_correcciones(marcados, eventos_previos)
     return resultado
 
 

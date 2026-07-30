@@ -13,8 +13,10 @@ REGLAS DE DISEÑO E INTERFAZ:
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 import streamlit as st
@@ -64,102 +66,90 @@ CUSTOM_CSS = """
         font-size: 1.05rem;
     }
 
-    /* Tarjetas de eventos */
+    /* Tarjetas de eventos.
+       Los colores son semitransparentes a proposito: asi funcionan igual en
+       tema claro y oscuro, heredando el fondo de Streamlit. Con colores fijos
+       (#ffffff) las tarjetas quedaban blancas encandilando sobre tema oscuro. */
     .evento-card {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-left: 5px solid #0284c7;
+        background-color: rgba(128, 128, 128, 0.07);
+        border-left: 4px solid #0ea5e9;
         border-radius: 8px;
-        padding: 1rem 1.25rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        padding: 0.9rem 1.1rem;
+        margin-bottom: 0.8rem;
     }
     .evento-card-revision {
-        border-left: 5px solid #eab308 !important;
-        background-color: #fefce8 !important;
+        border-left: 4px solid #eab308 !important;
+        background-color: rgba(234, 179, 8, 0.10) !important;
     }
     .evento-header {
         display: flex;
         justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.5rem;
+        align-items: baseline;
+        gap: 1rem;
+        margin-bottom: 0.35rem;
+        flex-wrap: wrap;
     }
     .evento-tipo {
         font-weight: 700;
-        color: #0f172a;
-        font-size: 1.1rem;
+        font-size: 1.05rem;
     }
     .evento-meta {
-        color: #64748b;
-        font-size: 0.88rem;
+        opacity: 0.65;
+        font-size: 0.85rem;
     }
     .cita-textual {
-        background-color: #f8fafc;
-        border-left: 3px solid #cbd5e1;
-        padding: 0.5rem 0.75rem;
+        border-left: 3px solid rgba(128, 128, 128, 0.4);
+        padding: 0.4rem 0.7rem;
         font-style: italic;
-        color: #334155;
-        font-size: 0.95rem;
+        opacity: 0.85;
+        font-size: 0.93rem;
         margin-top: 0.5rem;
-        border-radius: 4px;
     }
-    
+
     /* Badges */
     .badge-revision {
-        background-color: #fef08a;
-        color: #854d0e;
-        padding: 0.25rem 0.6rem;
+        background-color: rgba(234, 179, 8, 0.22);
+        color: #eab308;
+        padding: 0.2rem 0.6rem;
         border-radius: 9999px;
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         font-weight: 600;
         display: inline-block;
     }
     .badge-confianza {
-        background-color: #e0f2fe;
-        color: #0369a1;
-        padding: 0.2rem 0.5rem;
+        background-color: rgba(14, 165, 233, 0.18);
+        color: #0ea5e9;
+        padding: 0.18rem 0.5rem;
         border-radius: 4px;
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         font-weight: 600;
     }
-    
-    /* Sección SATI-Q */
-    .satiq-seccion {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 1.2rem;
-        margin-bottom: 1.5rem;
-    }
-    .satiq-seccion-titulo {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin-bottom: 1rem;
-        border-bottom: 2px solid #cbd5e1;
-        padding-bottom: 0.4rem;
-    }
+
+    /* Filas de la fila SATI-Q */
     .campo-row {
         display: flex;
         justify-content: space-between;
-        align-items: center;
-        padding: 0.6rem 0;
-        border-bottom: 1px solid #f1f5f9;
+        align-items: baseline;
+        gap: 0.75rem;
+        padding: 0.5rem 0 0.2rem 0;
     }
     .campo-nombre {
         font-weight: 600;
-        color: #334155;
-        font-size: 0.95rem;
+        font-size: 0.92rem;
     }
     .campo-codigo {
-        color: #94a3b8;
-        font-size: 0.8rem;
-        margin-left: 0.4rem;
+        opacity: 0.45;
+        font-size: 0.75rem;
+        margin-left: 0.35rem;
+        font-family: monospace;
     }
     .campo-valor {
         font-weight: 700;
-        color: #0f172a;
-        font-size: 1rem;
+        font-size: 1.15rem;
+        white-space: nowrap;
+    }
+    .campo-derivado {
+        color: #0ea5e9;
     }
 </style>
 """
@@ -193,19 +183,136 @@ def guardar_archivo_audio(audio_bytes: bytes) -> Path:
     ruta.write_bytes(audio_bytes)
     return ruta
 
-# Intentar transcripción con faster-whisper (con fallback seguro)
-def transcribir_con_whisper(ruta_audio: Path) -> str | None:
+# Transcripción con faster-whisper.
+#
+# Ojo con dos cosas que en Streamlit importan mucho:
+#
+# 1. EL MODELO SE CARGA UNA SOLA VEZ. Streamlit re-ejecuta el script entero en
+#    cada interacción; sin @st.cache_resource se recargaría el modelo (10-20s)
+#    en cada click. Se cachea acá.
+# 2. NO SE RE-TRANSCRIBE EL MISMO AUDIO. Idem: sin un guard, cada rerun vuelve
+#    a transcribir la grabación que ya estaba procesada. Se usa un hash del
+#    audio como clave.
+#
+# Esta maquina no tiene GPU utilizable (Intel HD 620), asi que va en CPU con
+# int8. 'small' rinde ~1.4x tiempo real; 'large-v3-turbo' es mas preciso pero
+# bastante mas lento. Se puede elegir desde el sidebar.
+@st.cache_resource(show_spinner=False)
+def cargar_modelo_whisper(nombre: str):
+    import voz
+    return voz.cargar_modelo(nombre)
+
+
+def transcribir_con_whisper(ruta_audio: Path, modelo: str) -> tuple[str | None, str | None]:
+    """Devuelve (texto, error). Si falla, el motivo se muestra en pantalla:
+    tragarse la excepcion deja al usuario sin saber por que no anda."""
     try:
-        from faster_whisper import WhisperModel
-        model = WhisperModel("small", compute_type="float32")
-        segments, _ = model.transcribe(str(ruta_audio), language="es")
-        texto = " ".join([s.text for s in segments]).strip()
-        return texto if texto else None
-    except Exception:
-        return None
+        cargar_modelo_whisper(modelo)  # calienta el cache
+        import voz
+        texto, _ = voz.transcribir(ruta_audio, modelo)
+        return (texto or None), None
+    except ImportError:
+        return None, "faster-whisper no está instalado. Corré: pip install faster-whisper"
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
 
 # Mapeo de campos a sus definiciones en el schema
 CAMPOS_DICT = {c["nombre"]: c for c in validador.CAMPOS}
+
+# -----------------------------------------------------------------------
+# Traduccion de eventos a castellano.
+#
+# Un medico no tiene por que leer {"dispositivo": "CVC", "instancia_id":
+# "CVC-1", "sitio": "subclavia derecha"}. Estas funciones convierten el
+# payload en una frase. Los nombres salen de los catalogos del schema, no
+# estan escritos a mano dos veces.
+# -----------------------------------------------------------------------
+_SCHEMA_EVENTOS = json.loads(Path("schema/eventos.json").read_text(encoding="utf-8"))
+DISPOSITIVOS_NOMBRE = _SCHEMA_EVENTOS["catalogos"]["dispositivos"]
+ADVERSOS_NOMBRE = {k: v["descripcion"] for k, v in _SCHEMA_EVENTOS["catalogos"]["eventos_adversos"].items()}
+RESULTADO_NOMBRE = _SCHEMA_EVENTOS["catalogos"]["resultado_egreso"]
+MEDICIONES_NOMBRE = _SCHEMA_EVENTOS["payloads"]["fisiologico_24h"]["campos"]["mediciones"]["claves"]
+
+ICONO_EVENTO = {
+    "dispositivo_inicio": "🔌",
+    "dispositivo_fin": "🔓",
+    "evento_adverso": "⚠️",
+    "fisiologico_24h": "🌡️",
+    "tiss_diario": "📊",
+    "egreso": "🚪",
+}
+
+
+_PLACEHOLDERS = {
+    "no mencionado", "no especificado", "no especifica", "desconocido",
+    "n/a", "na", "none", "null", "no aplica", "sin especificar", "no indicado",
+}
+
+
+def _texto_util(valor) -> str:
+    """Descarta los rellenos tipo 'no mencionado' que a veces devuelve el
+    modelo. gemma.py ya los filtra al normalizar, pero los eventos que quedaron
+    guardados antes de ese arreglo los siguen teniendo."""
+    if not isinstance(valor, str) or valor.strip().lower() in _PLACEHOLDERS:
+        return ""
+    return valor.strip()
+
+
+def describir_evento(ev) -> str:
+    """Una frase en castellano que describe lo que pasó."""
+    p = ev.payload_json
+    tipo = ev.tipo_evento
+
+    if tipo == "dispositivo_inicio":
+        nombre = DISPOSITIVOS_NOMBRE.get(p.get("dispositivo"), p.get("dispositivo", ""))
+        sitio_txt = _texto_util(p.get("sitio"))
+        sitio = f" en {sitio_txt}" if sitio_txt else ""
+        return f"Se colocó **{nombre.lower()}**{sitio}"
+
+    if tipo == "dispositivo_fin":
+        nombre = DISPOSITIVOS_NOMBRE.get(p.get("dispositivo"), p.get("dispositivo", ""))
+        motivo = p.get("motivo")
+        extra = ""
+        if motivo == "accidental":
+            extra = " (retiro accidental)"
+        elif motivo == "recambio":
+            extra = " (por recambio)"
+        return f"Se retiró **{nombre.lower()}**{extra}"
+
+    if tipo == "evento_adverso":
+        nombre = ADVERSOS_NOMBRE.get(p.get("codigo"), p.get("codigo", ""))
+        return f"**{nombre}** — declarado por el médico"
+
+    if tipo == "fisiologico_24h":
+        med = p.get("mediciones") or {}
+        if not med:
+            return "Registro de valores fisiológicos"
+        partes = [f"{MEDICIONES_NOMBRE.get(k, k).split(',')[0]}: **{v}**" for k, v in med.items()]
+        texto = " · ".join(partes)
+        if p.get("falla_renal_aguda"):
+            texto += " · con falla renal aguda"
+        return texto
+
+    if tipo == "tiss_diario":
+        pts = p.get("puntaje_manual")
+        return f"Carga de trabajo del día (TISS-28): **{pts} puntos**" if pts is not None else "Carga de trabajo del día (TISS-28)"
+
+    if tipo == "egreso":
+        destino = RESULTADO_NOMBRE.get(str(p.get("resultado")), p.get("resultado", ""))
+        return f"**Egreso de la unidad** → {destino}"
+
+    return tipo
+
+
+def instancia_legible(ev) -> str:
+    """CVC-2 se muestra como '2º catéter venoso central'."""
+    inst = (ev.payload_json or {}).get("instancia_id") or ""
+    if "-" not in inst:
+        return ""
+    codigo, _, numero = inst.partition("-")
+    if not numero.isdigit() or numero == "1":
+        return ""
+    return f"{numero}º {DISPOSITIVOS_NOMBRE.get(codigo, codigo).lower()}"
 
 # Agrupación humana de las 49 columnas de SATI-Q
 SECCIONES_SATIQ = {
@@ -236,10 +343,25 @@ SECCIONES_SATIQ = {
 # Sidebar - Información del Paciente y Accesos Rápidos
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.image("https://img.icons8.com/color/96/hospital-room.png", width=70)
-    st.title("MedTranscriptor")
+    # Sin imágenes remotas: si en la demo no hay internet, la página cuelga
+    # esperando el request.
+    st.title("🩺 MedTranscriptor")
     st.caption("Sistema Inteligente de Registro UCI")
-    
+
+    st.divider()
+    st.subheader("🎙️ Transcripción")
+    modelo_whisper = st.selectbox(
+        "Modelo de Whisper",
+        options=["small", "base", "large-v3-turbo"],
+        index=0,
+        help=(
+            "Corre local, sin internet. Esta máquina no tiene GPU: "
+            "'base' es el más rápido, 'small' equilibrado, "
+            "'large-v3-turbo' el más preciso pero bastante más lento "
+            "(y baja 1.6 GB la primera vez)."
+        ),
+    )
+
     st.divider()
     st.subheader("📌 Paciente Sintético Activo")
     st.markdown(f"**ID Paciente:** `{episodio_actual.idpaciente}`")
@@ -316,55 +438,88 @@ with tab_grabar:
         
         if st.button("Usar esta nota de ejemplo", use_container_width=True):
             nota_sel = semilla.NOTAS[opcion_nota]
-            st.session_state["texto_transcripto"] = nota_sel["texto"]
-            st.session_state["autor_nota"] = nota_sel["autor"]
-            try:
-                st.session_state["fecha_ref"] = datetime.strptime(nota_sel["fecha_referencia"], "%Y-%m-%d").date()
-            except Exception:
-                pass
-            st.success(f"Nota {opcion_nota+1} cargada en el editor.")
+            # Igual que con la transcripción: hay que escribir la key del
+            # text_area, no una variable aparte, o el editor queda vacío.
+            st.session_state["editor_nota"] = nota_sel["texto"]
+            st.session_state["transcripcion_original"] = None
+            st.session_state["transcripcion_error"] = None
             st.rerun()
 
     with col_input:
         st.subheader("Grabación de Voz")
         audio_dictado = st.audio_input("Dictá la evolución médica")
-        
-        texto_inicial = st.session_state.get("texto_transcripto", "")
-        
+
         if audio_dictado is not None:
             audio_bytes = audio_dictado.getvalue()
-            ruta_audio = guardar_archivo_audio(audio_bytes)
-            st.toast(f"Audio guardado en `{ruta_audio}`", icon="💾")
-            
-            # Intentar Whisper
-            with st.spinner("Transcribiendo audio con Whisper (modelo small)..."):
-                whisper_texto = transcribir_con_whisper(ruta_audio)
-                if whisper_texto:
-                    texto_inicial = whisper_texto
-                    st.success("Transcripción automática completada con Whisper.")
+            # Un mismo audio se transcribe UNA sola vez. Streamlit re-ejecuta
+            # el script en cada interaccion, y sin este guard cada click
+            # volveria a pasar Whisper sobre la misma grabacion.
+            firma = hashlib.md5(audio_bytes).hexdigest()
+
+            if st.session_state.get("audio_firma") != firma:
+                ruta_audio = guardar_archivo_audio(audio_bytes)
+                st.session_state["audio_firma"] = firma
+                st.session_state["audio_ruta"] = str(ruta_audio)
+
+                with st.spinner("Transcribiendo…"):
+                    inicio = time.time()
+                    texto_whisper, error = transcribir_con_whisper(ruta_audio, modelo_whisper)
+                    st.session_state["transcripcion_segundos"] = round(time.time() - inicio, 1)
+
+                if texto_whisper:
+                    # El texto va DIRECTO al editor. Con key= el text_area
+                    # ignora el value=, asi que hay que escribir la session_state
+                    # de la key antes del rerun o el cuadro queda vacio.
+                    st.session_state["editor_nota"] = texto_whisper
+                    st.session_state["transcripcion_original"] = texto_whisper
+                    st.session_state["transcripcion_error"] = None
                 else:
-                    st.warning("No se detectó `faster-whisper` instalado o falló el reconocimiento. Podés editar o pegar la nota a mano a continuación.")
-        
+                    st.session_state["transcripcion_error"] = error or "No se detectó voz en el audio."
+                st.rerun()
+
+        if st.session_state.get("transcripcion_error"):
+            st.error(f"No se pudo transcribir. {st.session_state['transcripcion_error']}")
+            st.caption("La app sigue funcionando: escribí o pegá la nota a mano abajo.")
+        elif st.session_state.get("transcripcion_original"):
+            st.success(
+                f"Listo en {st.session_state.get('transcripcion_segundos', '?')}s. "
+                "Revisá el texto abajo antes de procesar."
+            )
+
         texto_nota = st.text_area(
-            "Texto de la nota de evolución (revisá o editá el texto antes de procesar):",
-            value=texto_inicial,
-            height=200,
-            placeholder="Ej: Ingresa a las tres de la tarde derivado de guardia, sepsis a foco respiratorio. A las cuatro de la tarde lo intubo..."
+            "📝 Nota de evolución — corregí acá lo que haga falta",
+            height=190,
+            key="editor_nota",
+            help=(
+                "Whisper puede errarle a las fechas y a los términos médicos. "
+                "Una fecha mal transcripta arruina el cálculo de días de dispositivo, "
+                "así que conviene leerlo antes de procesar."
+            ),
+            placeholder="Dictá arriba, o escribí acá directamente.\n\nEj: Hoy a las diez de la mañana le coloqué una vía central subclavia derecha. Temperatura 38.5, frecuencia cardíaca 110. Ayer le sacamos la sonda vesical.",
         )
+
+        if st.session_state.get("audio_ruta"):
+            with st.expander("Detalles de la grabación", expanded=False):
+                st.caption(f"Audio guardado en `{st.session_state['audio_ruta']}`")
+                if st.session_state.get("transcripcion_original"):
+                    st.caption("Transcripción original, antes de tus correcciones:")
+                    st.code(st.session_state["transcripcion_original"], language=None)
         
         if st.button("🤖 Procesar con Gemma", type="primary", use_container_width=True, disabled=not texto_nota.strip()):
             eventos_existentes = db.get_eventos(con, episodio_actual.id)
-            abiertas = gemma.instancias_abiertas(eventos_existentes)
-            
             fecha_str = fecha_ref.strftime("%Y-%m-%d")
-            
+
             with st.spinner("Gemma está analizando la nota y extrayendo los eventos clínicos (~13 segundos)..."):
+                # eventos_previos (en vez de 'abiertas') le da al modelo el
+                # estado del paciente Y habilita la resolución de correcciones:
+                # Gemma marca que un evento corrige algo, Python resuelve a cuál.
                 resultado = gemma.traducir_nota(
                     episodio_id=episodio_actual.id,
                     nota=texto_nota,
                     fecha_referencia=fecha_str,
                     autor=autor_nota,
-                    abiertas=abiertas
+                    fuente="audio_gemma" if st.session_state.get("audio_ruta") else "texto_gemma",
+                    eventos_previos=eventos_existentes,
                 )
                 st.session_state["resultado_gemma"] = resultado
                 st.session_state["nota_procesada_reciente"] = texto_nota
@@ -396,24 +551,33 @@ with tab_anotado:
         for i, ev in enumerate(resultado.eventos, start=1):
             es_dudoso = ev.confianza < modelos.UMBRAL_REVISION
             card_class = "evento-card-revision" if es_dudoso else "evento-card"
-            
-            st.markdown(
-                f"""
-                <div class="{card_class}">
-                    <div class="evento-header">
-                        <span class="evento-tipo">#{i} {ev.tipo_evento.upper()}</span>
-                        <span class="evento-meta">🕒 {ev.timestamp_clinico} | 👤 {ev.autor}</span>
+
+            fecha, _, hora = ev.timestamp_clinico.partition("T")
+            fecha_legible = "/".join(reversed(fecha.split("-")))
+            instancia = instancia_legible(ev)
+            etiqueta_inst = f" · {instancia}" if instancia else ""
+
+            with st.container():
+                st.markdown(
+                    f"""
+                    <div class="{card_class}">
+                        <div class="evento-header">
+                            <span class="evento-tipo">{ICONO_EVENTO.get(ev.tipo_evento, '•')} {describir_evento(ev)}{etiqueta_inst}</span>
+                            <span class="evento-meta">{fecha_legible} · {hora[:5]} · {ev.autor}</span>
+                        </div>
+                        <div class="cita-textual">"{ev.texto_crudo}"</div>
+                        <div style="margin-top: 0.5rem;">
+                            <span class="badge-confianza">Certeza {int(ev.confianza * 100)}%</span>
+                            {'<span class="badge-revision">Revisá esto</span>' if es_dudoso else ''}
+                        </div>
                     </div>
-                    <div><strong>Payload:</strong> <code>{json.dumps(ev.payload_json, ensure_ascii=False)}</code></div>
-                    <div class="cita-textual">"{ev.texto_crudo}"</div>
-                    <div style="margin-top: 0.5rem;">
-                        <span class="badge-confianza">Confianza: {ev.confianza}</span>
-                        {'<span class="badge-revision">⚠️ Requiere revisión humana</span>' if es_dudoso else ''}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+                    """,
+                    unsafe_allow_html=True
+                )
+                # El JSON sigue disponible, pero escondido: le sirve al que
+                # audita el sistema, no al medico que confirma la evolucion.
+                with st.expander("Ver dato técnico", expanded=False):
+                    st.code(json.dumps(ev.payload_json, ensure_ascii=False, indent=2), language="json")
             
         # 2. Bloque "Esto no lo entendí"
         if resultado.no_entendido:
@@ -448,17 +612,24 @@ with tab_anotado:
         
         # Filtro o visualización de eventos de la BD
         with st.expander("Ver lista de eventos almacenados", expanded=True):
+            dia_actual = None
             for e in sorted(eventos_bd, key=lambda x: x.timestamp_clinico):
-                p = e.payload_json
-                detalle = p.get("dispositivo") or p.get("codigo") or ""
-                if "mediciones" in p:
-                    detalle = ", ".join(f"{k}={v}" for k, v in list(p["mediciones"].items())[:3])
-                instancia = p.get("instancia_id", "")
-                
-                color_conf = "🟡" if e.confianza < modelos.UMBRAL_REVISION else "🟢"
+                fecha, _, hora = e.timestamp_clinico.partition("T")
+                # Separador por dia: la internacion se lee como una linea de
+                # tiempo, no como una lista plana de 24 filas.
+                if fecha != dia_actual:
+                    dia_actual = fecha
+                    st.markdown(f"**📅 {'/'.join(reversed(fecha.split('-')))}**")
+
+                marca = "🟡" if e.confianza < modelos.UMBRAL_REVISION else "🟢"
+                instancia = instancia_legible(e)
+                etiqueta_inst = f" · {instancia}" if instancia else ""
+                anulado = " · ↩️ *corrige un registro anterior*" if e.corrige_a_evento_id else ""
                 st.markdown(
-                    f"{color_conf} **`{e.timestamp_clinico[:16]}`** | **`{e.tipo_evento}`** | {detalle} `{instancia}`  \n"
-                    f"└ *{e.autor}* (conf: `{e.confianza}`) — *\"{e.texto_crudo}\"*"
+                    f"{marca} `{hora[:5]}` {ICONO_EVENTO.get(e.tipo_evento, '•')} "
+                    f"{describir_evento(e)}{etiqueta_inst}{anulado}  \n"
+                    f"&nbsp;&nbsp;&nbsp;&nbsp;<small>{e.autor} — *\"{e.texto_crudo}\"*</small>",
+                    unsafe_allow_html=True,
                 )
 
 # ---------------------------------------------------------------------------
@@ -604,11 +775,26 @@ with tab_satiq:
                 
     with col_exp3:
         st.markdown("##### 3. Verificación VIHDA")
-        if st.button("🔍 Criterios Infección Neumonía", use_container_width=True):
-            texto_registro = "Radiografía con infiltrado nuevo. Fiebre 38.7, glóbulos blancos 21.400, secreción purulenta."
-            with st.spinner("Gemma está evaluando los criterios VIHDA..."):
-                eval_vihda = gemma.verificar_vihda("NEUMONIA", texto_registro)
-                st.session_state["eval_vihda"] = eval_vihda
+        infecciones = sorted({
+            e.payload_json.get("codigo") for e in eventos_actuales
+            if e.tipo_evento == "evento_adverso"
+            and e.payload_json.get("codigo") in ("NEUMONIA", "INFCATETER", "INFURINARIA", "INFHERIDAS")
+        })
+        if not infecciones:
+            st.button("🔍 Verificar criterios VIHDA", disabled=True, use_container_width=True)
+            st.caption("No hay infecciones declaradas por el médico en este episodio.")
+        else:
+            codigo_sel = st.selectbox("Infección declarada", infecciones, label_visibility="collapsed")
+            if st.button("🔍 Verificar criterios VIHDA", use_container_width=True):
+                # El registro son las citas textuales de los eventos guardados,
+                # no un texto de ejemplo: si se le pasa texto inventado, la
+                # verificación no dice nada sobre este paciente.
+                texto_registro = "\n".join(
+                    f"[{e.timestamp_clinico[:16]}] {e.texto_crudo}"
+                    for e in sorted(eventos_actuales, key=lambda x: x.timestamp_clinico)
+                )
+                with st.spinner("Gemma está revisando si el registro documenta los criterios..."):
+                    st.session_state["eval_vihda"] = gemma.verificar_vihda(codigo_sel, texto_registro)
 
     # Mostrar explicaciones si existen
     if "explicacion_familia" in st.session_state and st.session_state["explicacion_familia"]:
@@ -618,12 +804,18 @@ with tab_satiq:
     if "eval_vihda" in st.session_state and st.session_state["eval_vihda"]:
         st.markdown("#### 🔬 Verificación Criterios VIHDA (Neumonía):")
         eval_v = st.session_state["eval_vihda"]
+        st.caption(
+            "El médico ya declaró la infección. Gemma no la confirma ni la discute: "
+            "sólo revisa si el registro documenta lo que VIHDA exige para poder reportarla."
+        )
         col_c1, col_c2 = st.columns(2)
         with col_c1:
-            st.markdown("**Cumplidos:**")
+            st.markdown("**Documentado:**")
             for c in eval_v.get("cumplidos", []):
-                st.success(f"✓ {c}")
+                st.success(f"✓ **{c.get('id', '')}**\n\n> *{c.get('evidencia', '')}*")
         with col_c2:
-            st.markdown("**Faltantes:**")
+            st.markdown("**Falta documentar:**")
             for f in eval_v.get("faltantes", []):
-                st.warning(f"✗ {f}")
+                st.warning(f"✗ **{f.get('id', '')}**\n\n{f.get('que_falta', '')}")
+            if eval_v.get("faltantes"):
+                st.error("Con documentación incompleta, SATI-Q puede rechazar este caso.")
