@@ -1,4 +1,11 @@
-# MedTranscriptor
+# 🩺 MedTranscriptor
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B.svg)](https://streamlit.io/)
+[![pywebview](https://img.shields.io/badge/Desktop-pywebview-0284c7.svg)](https://pywebview.flowrl.com/)
+[![Whisper](https://img.shields.io/badge/Speech--to--Text-faster--whisper-00A67E.svg)](https://github.com/SYSTRAN/faster-whisper)
+[![Google Gemma 4](https://img.shields.io/badge/AI-Gemma%204-4285F4.svg)](https://ai.google.dev/)
+[![SATI-Q](https://img.shields.io/badge/Standard-SATI--Q%202026-0284c7.svg)](https://sati.org.ar/)
 
 **El médico dicta. El sistema calcula. Cada número se puede rastrear hasta la frase que lo originó.**
 
@@ -113,13 +120,42 @@ Es una auditoría de completitud del registro, no un diagnóstico.
 
 ## Cómo se usa
 
+### Inicio rápido (Quick Start)
+
+1. Clonar e instalar dependencias
+
 ```bash
+git clone https://github.com/Zertyens/MedTranscriptor.git
+cd MedTranscriptor
+
+python -m venv .venv
+# En Windows: .venv\Scripts\activate | En Linux/macOS: source .venv/bin/activate
+
 pip install streamlit faster-whisper pywebview
-cp .env.example .env      # y poner la API key de Google AI Studio
-python MedTranscriptor.py
 ```
 
-Se abre una ventana de escritorio. Si el micrófono no funciona en la ventana nativa:
+2. Configurar credenciales (`.env`)
+
+Copiar `.env.example` a `.env` e ingresar tu clave de Google AI Studio si usarás el backend de Google:
+
+```ini
+GOOGLE_AI_API_KEY=tu_api_key_de_google_ai_studio
+GEMMA_MODEL=gemma-4-26b-a4b-it
+GEMMA_BACKEND=google
+GEMMA_THINKING=high
+```
+
+3. Iniciar MedTranscriptor
+
+```bash
+# Modo Aplicación de Escritorio Nativa (Recomendado):
+python MedTranscriptor.py
+
+# Modo Demo CLI Offline (Instantáneo sin consumo de API):
+python demo.py --cache
+```
+
+Si el micrófono no funciona en la ventana nativa:
 
 ```bash
 python MedTranscriptor.py --navegador
@@ -235,3 +271,4 @@ Hackathon Gemma. El manual de vigilancia VIHDA se consultó vía NotebookLM sobr
 oficial del Programa Nacional de Epidemiología y Control de Infecciones Hospitalarias.
 
 Especificación: *EDS V2026 SATI-Q*, Anexos A1 a A4.
+
