@@ -328,7 +328,15 @@ PAYLOAD SEGUN EL TIPO DE EVENTO
   evento_adverso:     codigo, adjudicado_por
   fisiologico_24h:    mediciones (objeto), falla_renal_aguda
   tiss_diario:        fecha, puntaje_manual
-  egreso:             resultado
+  egreso:             resultado (NUMERO ENTERO, nunca texto)
+
+CODIGOS DE RESULTADO AL EGRESO (usa el numero, no la descripcion):
+{resultados}
+
+DISPOSITIVOS QUE YA ESTAN COLOCADOS EN ESTE PACIENTE
+{instancias_abiertas}
+Si la nota menciona que se retira uno de estos, usa EXACTAMENTE su instancia_id.
+Si menciona que se coloca uno nuevo, inventa el siguiente numero libre.
 
 FORMATO DE SALIDA. Devolve SOLO este JSON, sin texto antes ni despues:
 {{
@@ -340,8 +348,18 @@ FORMATO DE SALIDA. Devolve SOLO este JSON, sin texto antes ni despues:
 }}"""
 
 
-def _sistema_traduccion() -> str:
-    """Los enums salen del schema, no estan duplicados en el prompt."""
+def _sistema_traduccion(instancias_abiertas: dict[str, str] | None = None) -> str:
+    """Los enums salen del schema, no estan duplicados en el prompt.
+
+    'instancias_abiertas' es el estado del paciente: que dispositivos siguen
+    colocados y con que instancia_id. Sin esto el modelo no tiene forma de
+    saber que la yugular era CVC-2 y no CVC-1, porque cada nota se procesa
+    de forma independiente."""
+    if instancias_abiertas:
+        estado = "\n".join(f"  {inst} = {desc}" for inst, desc in sorted(instancias_abiertas.items()))
+    else:
+        estado = "  (ninguno todavia)"
+
     return SISTEMA_TRADUCCION.format(
         tipos=", ".join(TIPOS_EVENTO),
         dispositivos=", ".join(
@@ -352,7 +370,28 @@ def _sistema_traduccion() -> str:
             f"  {k}: {v}"
             for k, v in _EVENTOS_SCHEMA["payloads"]["fisiologico_24h"]["campos"]["mediciones"]["claves"].items()
         ),
+        resultados="\n".join(
+            f"  {k} = {v}" for k, v in _EVENTOS_SCHEMA["catalogos"]["resultado_egreso"].items()
+        ),
+        instancias_abiertas=estado,
     )
+
+
+def instancias_abiertas(eventos: list[Evento]) -> dict[str, str]:
+    """Que dispositivos siguen colocados, segun los eventos ya registrados.
+    Se le pasa a traducir_nota() para que el modelo mantenga continuidad."""
+    abiertas: dict[str, str] = {}
+    for e in sorted(eventos, key=lambda x: x.timestamp_clinico):
+        p = e.payload_json
+        inst = p.get("instancia_id")
+        if not inst:
+            continue
+        if e.tipo_evento == "dispositivo_inicio":
+            sitio = p.get("sitio")
+            abiertas[inst] = f"{p.get('dispositivo')}" + (f" ({sitio})" if sitio else "")
+        elif e.tipo_evento == "dispositivo_fin":
+            abiertas.pop(inst, None)
+    return abiertas
 
 
 def _esquema_traduccion() -> dict[str, Any]:
@@ -405,8 +444,13 @@ def traducir_nota(
     fecha_referencia: str,
     autor: str,
     fuente: str = "texto_gemma",
+    abiertas: dict[str, str] | None = None,
 ) -> ResultadoTraduccion:
     """Convierte una nota de evolucion en eventos validados.
+
+    'abiertas' son los dispositivos que ya estan colocados (ver
+    instancias_abiertas()). Sin ese estado el modelo no puede mantener la
+    continuidad de instancia_id entre notas.
 
     Los eventos que no pasan la validacion van a 'rechazados' con el motivo.
     Nunca se insertan a la fuerza ni se descartan sin dejar rastro."""
@@ -415,7 +459,7 @@ def traducir_nota(
     inicio = time.time()
     crudo = _llamar(
         prompt=f"FECHA DE REFERENCIA: {fecha_referencia}\n\nNOTA DE EVOLUCION:\n{nota}",
-        sistema=_sistema_traduccion(),
+        sistema=_sistema_traduccion(abiertas),
         esquema=_esquema_traduccion(),
     )
     datos = _extraer_json(crudo)

@@ -1,0 +1,416 @@
+[
+  {
+    "id": "de41c007-40be-4aa1-8da5-c34b5dbea89f",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-01T16:00:00",
+    "timestamp_carga": "2026-07-30T14:59:32",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "dispositivo_inicio",
+    "payload_json": {
+      "dispositivo": "VI",
+      "instancia_id": "VI-1",
+      "sitio": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.9,
+    "texto_crudo": "A las cuatro de la tarde lo intubo y queda en ARM",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "0f8afc94-a71d-4559-a09c-127de351236f",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-01T16:00:00",
+    "timestamp_carga": "2026-07-30T14:59:32",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "fisiologico_24h",
+    "payload_json": {
+      "mediciones": {
+        "temperatura_c": 39.8,
+        "fc_lpm": 142,
+        "pam_mmhg": 62,
+        "fr_rpm": 28,
+        "glasgow": 8,
+        "fio2": 0.4,
+        "pao2_mmhg": 58,
+        "paco2_mmhg": 48,
+        "ph_arterial": 7.28,
+        "creatinina_mg_dl": 3.1,
+        "sodio_meq_l": 128,
+        "potasio_meq_l": 5.1,
+        "hematocrito_pct": 28,
+        "leucocitos_mil_mm3": 21
+      },
+      "falla_renal_aguda": true
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.8,
+    "texto_crudo": "Temperatura 39.8, frecuencia cardiaca 142, tensión arterial media 62, frecuencia respiratoria 28, Glasgow 8. Gases con FiO2 al 40 por ciento: PaO2 58, PaCO2 48, pH 7.28. Laboratorio: creatinina 3.1, sodio 128, potasio 5.1, hematocrito 28, globulos blancos 21 mil. Tiene falla renal aguda.",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "2e83d60a-e718-4abc-8d7e-2f91a9366583",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-02T09:00:00",
+    "timestamp_carga": "2026-07-30T14:59:44",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "dispositivo_inicio",
+    "payload_json": {
+      "dispositivo": "CVC",
+      "instancia_id": "CVC-1",
+      "sitio": "subclavia derecha"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.7,
+    "texto_crudo": "Hoy a la manana le coloque una via central subclavia derecha",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "b4279b8c-4252-4bd3-9c74-acc704864046",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-02T15:00:00",
+    "timestamp_carga": "2026-07-30T14:59:44",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "dispositivo_inicio",
+    "payload_json": {
+      "dispositivo": "CVC",
+      "instancia_id": "CVC-2",
+      "sitio": "yugular"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.7,
+    "texto_crudo": "A la tarde tuve que poner una segunda central yugular",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "b8f453d1-68e8-4c2d-858b-276a9309af9d",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-02T12:00:00",
+    "timestamp_carga": "2026-07-30T14:59:44",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "dispositivo_inicio",
+    "payload_json": {
+      "dispositivo": "SNG",
+      "instancia_id": "SNG-1",
+      "sitio": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.5,
+    "texto_crudo": "Le pase una sonda nasogastrica tambien",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "3dc755a7-5d76-4463-8b99-ad0f0fd0e2b8",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-02T23:59:59",
+    "timestamp_carga": "2026-07-30T14:59:44",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "tiss_diario",
+    "payload_json": {
+      "fecha": "2025-03-02",
+      "puntaje_manual": 32
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.9,
+    "texto_crudo": "TISS del dia 32 puntos",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "7f4d52f7-8c10-4495-b966-02625006d7ad",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-03T09:00:00",
+    "timestamp_carga": "2026-07-30T14:59:59",
+    "autor": "Dr. Molina",
+    "tipo_evento": "dispositivo_inicio",
+    "payload_json": {
+      "dispositivo": "SV",
+      "instancia_id": "SV-1",
+      "sitio": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.5,
+    "texto_crudo": "Le colocamos sonda vesical a la manana",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "e5de8f85-1f31-4b97-b2e4-33a59990e558",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-03T09:00:00",
+    "timestamp_carga": "2026-07-30T14:59:59",
+    "autor": "Dr. Molina",
+    "tipo_evento": "dispositivo_inicio",
+    "payload_json": {
+      "dispositivo": "SE",
+      "instancia_id": "SE-1",
+      "sitio": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.5,
+    "texto_crudo": "sonda enteral para empezar alimentacion",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "4b7591fe-8092-490c-8343-2d3cf8b27fd9",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-03T09:00:00",
+    "timestamp_carga": "2026-07-30T14:59:59",
+    "autor": "Dr. Molina",
+    "tipo_evento": "dispositivo_inicio",
+    "payload_json": {
+      "dispositivo": "CAFO",
+      "instancia_id": "CAFO-1",
+      "sitio": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.4,
+    "texto_crudo": "Estuvo un rato con canula de alto flujo durante una prueba, unas ocho horas",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "d06619d0-d9b5-476a-82be-d8255dee3956",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-03T17:00:00",
+    "timestamp_carga": "2026-07-30T14:59:59",
+    "autor": "Dr. Molina",
+    "tipo_evento": "dispositivo_fin",
+    "payload_json": {
+      "dispositivo": "CAFO",
+      "instancia_id": "CAFO-1",
+      "motivo": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.4,
+    "texto_crudo": "Estuvo un rato con canula de alto flujo durante una prueba, unas ocho horas, despues volvio a ARM",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "66022466-9919-435b-90c3-f0523aded812",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-03T23:59:59",
+    "timestamp_carga": "2026-07-30T14:59:59",
+    "autor": "Dr. Molina",
+    "tipo_evento": "tiss_diario",
+    "payload_json": {
+      "fecha": "2025-03-03",
+      "puntaje_manual": 28
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.8,
+    "texto_crudo": "TISS 28",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "8c71e0c7-2c21-433e-9b8e-516a29585b1d",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-04T12:00:00",
+    "timestamp_carga": "2026-07-30T15:00:12",
+    "autor": "Dr. Molina",
+    "tipo_evento": "fisiologico_24h",
+    "payload_json": {
+      "mediciones": {
+        "temperatura_c": 38.7,
+        "leucocitos_mil_mm3": 21.4
+      }
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.7,
+    "texto_crudo": "Hoy hace un pico febril de 38.7. [...] Globulos blancos en 21.400.",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "2e5f4c4b-3af2-459a-8527-abd89f60fa9f",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-04T12:00:00",
+    "timestamp_carga": "2026-07-30T15:00:12",
+    "autor": "Dr. Molina",
+    "tipo_evento": "evento_adverso",
+    "payload_json": {
+      "codigo": "NEUMONIA",
+      "adjudicado_por": "medico"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.9,
+    "texto_crudo": "Lo interpreto como neumonia asociada a la ventilacion mecanica",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "d1667bca-68c5-437f-a2d3-980bfc18ec66",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-04T12:00:00",
+    "timestamp_carga": "2026-07-30T15:00:12",
+    "autor": "Dr. Molina",
+    "tipo_evento": "dispositivo_fin",
+    "payload_json": {
+      "dispositivo": "CVC",
+      "instancia_id": "CVC-2",
+      "motivo": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.9,
+    "texto_crudo": "Le saque la central yugular",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "b428005c-1ca7-44c9-a8c1-ed2391b3b8bf",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-04T12:00:00",
+    "timestamp_carga": "2026-07-30T15:00:12",
+    "autor": "Dr. Molina",
+    "tipo_evento": "tiss_diario",
+    "payload_json": {
+      "fecha": "2025-03-04",
+      "puntaje_manual": 30
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.9,
+    "texto_crudo": "TISS 30",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "7389c740-b957-454b-a1e9-01c3d94a9463",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-04T12:00:00",
+    "timestamp_carga": "2026-07-30T15:00:24",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "dispositivo_fin",
+    "payload_json": {
+      "dispositivo": "SNG",
+      "instancia_id": "SNG-1",
+      "motivo": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.5,
+    "texto_crudo": "Ayer a la tarde le sacamos la sonda nasogastrica",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "b7dfcd36-9ede-46ee-b1a3-5f8fdc466623",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-05T12:00:00",
+    "timestamp_carga": "2026-07-30T15:00:24",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "dispositivo_fin",
+    "payload_json": {
+      "dispositivo": "VI",
+      "instancia_id": "VI-1",
+      "motivo": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.7,
+    "texto_crudo": "Hoy al mediodia lo extubo",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "b371aad9-a5e2-44e9-9fc1-855a1101eca8",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-05T09:00:00",
+    "timestamp_carga": "2026-07-30T15:00:24",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "evento_adverso",
+    "payload_json": {
+      "codigo": "ESCARAS",
+      "adjudicado_por": "medico"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.8,
+    "texto_crudo": "Le encontramos una escara sacra grado 2 en la curacion de la manana",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "9abd7c02-a8f6-4908-bd51-ac9769a45004",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-05T00:00:00",
+    "timestamp_carga": "2026-07-30T15:00:24",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "tiss_diario",
+    "payload_json": {
+      "fecha": "2025-03-05",
+      "puntaje_manual": 22
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.9,
+    "texto_crudo": "TISS 22",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "8bfad89d-d0fd-459d-93a0-8943447bf70d",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-06T09:00:00",
+    "timestamp_carga": "2026-07-30T15:00:30",
+    "autor": "Dr. Molina",
+    "tipo_evento": "dispositivo_fin",
+    "payload_json": {
+      "dispositivo": "SV",
+      "instancia_id": "SV-1",
+      "motivo": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.7,
+    "texto_crudo": "la sonda vesical se retiro hoy a la manana",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "93db9e69-a600-4757-bd6b-5fdd06a308f2",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-06T00:00:00",
+    "timestamp_carga": "2026-07-30T15:00:30",
+    "autor": "Dr. Molina",
+    "tipo_evento": "tiss_diario",
+    "payload_json": {
+      "fecha": "2025-03-06",
+      "puntaje_manual": 18
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.9,
+    "texto_crudo": "TISS 18",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "796f4a0e-b979-4594-97b1-fe9613435c24",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-08T00:00:00",
+    "timestamp_carga": "2026-07-30T15:00:40",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "dispositivo_fin",
+    "payload_json": {
+      "dispositivo": "CVC",
+      "instancia_id": "CVC-1",
+      "motivo": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.5,
+    "texto_crudo": "Le retiro la central subclavia",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "23dea865-45f7-409f-bd7b-e081f4f789b6",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-08T00:00:00",
+    "timestamp_carga": "2026-07-30T15:00:40",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "dispositivo_fin",
+    "payload_json": {
+      "dispositivo": "SE",
+      "instancia_id": "SE-1",
+      "motivo": "no mencionado"
+    },
+    "fuente": "texto_gemma",
+    "confianza": 0.5,
+    "texto_crudo": "la sonda enteral esta manana",
+    "corrige_a_evento_id": null
+  },
+  {
+    "id": "99d218e0-232c-4a74-8f9d-6e8666fb2a4d",
+    "episodio_id": "38279c72-f468-44bd-bfeb-6074690825bf",
+    "timestamp_clinico": "2025-03-08T11:00:00",
+    "timestamp_carga": "2026-07-30T15:00:40",
+    "autor": "Dra. Pereyra",
+    "tipo_evento": "egreso",
+    "payload_json": {
+      "resultado": 1
+    },
+    "fuente": "texto_gemma",
+    "confianza": 1.0,
+    "texto_crudo": "Hoy a las once de la manana pasa a sala de internacion general",
+    "corrige_a_evento_id": null
+  }
+]
