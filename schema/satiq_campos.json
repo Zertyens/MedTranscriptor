@@ -239,7 +239,7 @@
       "origen": "derivado",
       "funcion": "dispositivo_dias",
       "arg": "VI",
-      "regla": "Suma de dias de cada instancia por separado. Por instancia: max(1, ceil((fin - inicio) / 24hs)). Menos de 24hs cuenta 1 dia completo. Si no hay dispositivo_fin, el fin es el timestamp del evento 'egreso'.",
+      "regla": "Suma de dias de cada instancia por separado. Por instancia: cantidad de fechas calendario distintas entre inicio y fin, ambas inclusive: (fecha_fin - fecha_inicio).days + 1. Confirmado contra manual VIHDA: 'un dia calendario no debe interpretarse como 24 horas', el dia de colocacion cuenta como dia 1 y el de remocion tambien cuenta. Si no hay dispositivo_fin, el fin es el timestamp del evento 'egreso'. DECISION: la suma por instancia_id (2 CVC simultaneos = dias de cada uno por separado) se mantiene segun Anexo A1 y CONTEXT.txt regla 4, aunque VIHDA indique contar 1 solo dispositivo central por dia -- gana la definicion del campo SATI-Q que se esta exportando.",
       "validacion": {
         "tipo": "entero",
         "condicional": { "campo": "VI", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 365 } }

@@ -1,0 +1,16 @@
+# Secretos: NUNCA commitear. El repo del hackathon es publico.
+.env
+
+# Base de datos local (puede contener el paciente sintetico, pero igual no va al repo)
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Audio de la demo
+demo/audio/
+*.wav
+*.mp3

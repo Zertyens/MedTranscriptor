@@ -1,0 +1,171 @@
+{
+  "_meta": {
+    "descripcion": "Criterios de vigilancia epidemiologica VIHDA para las 4 infecciones asociadas a dispositivo que reporta SATI-Q. Se le pasan completos a Gemma en el prompt de verificacion.",
+    "fuente": "Manual de Vigilancia VIHDA, consultado 2026-07-30 via NotebookLM sobre el PDF oficial.",
+    "para_que_sirve": "Gemma NO decide si hay infeccion. El medico la declara. Gemma compara la declaracion contra estos criterios y devuelve cuales estan documentados en el registro y cuales faltan. Es verificacion de completitud del registro, no diagnostico.",
+    "salida_esperada": "Por cada evento_adverso con requiere_verificacion_vihda=true, Gemma devuelve verificacion_vihda: {cumplidos: [id_criterio], faltantes: [id_criterio]}.",
+    "nota_validacion": "Los ids de criterio son internos nuestros. El texto de cada criterio es del manual. Conviene que alguien del equipo con criterio clinico revise el mapeo antes de la demo."
+  },
+
+  "NEUMONIA": {
+    "nombre": "Neumonia asociada a ventilacion mecanica (NEU-ARM / NAR)",
+    "dispositivo_asociado": "VI",
+    "combinacion": "todos_obligatorios",
+    "nota_combinacion": "Los 4 criterios se cumplen de forma combinada y obligatoria para sospechar NAR.",
+    "criterios": [
+      {
+        "id": "radiologico_infiltrado",
+        "tipo": "radiologico",
+        "obligatorio": true,
+        "texto": "Presencia de infiltrado pulmonar progresivo o nuevo en la radiografia de torax persistente por mas de 48 horas."
+      },
+      {
+        "id": "clinico_aspirado_purulento",
+        "tipo": "clinico",
+        "obligatorio": true,
+        "texto": "Aspirado traqueal (AT) purulento."
+      },
+      {
+        "id": "clinico_fiebre",
+        "tipo": "clinico",
+        "obligatorio": true,
+        "texto": "Fiebre mayor de 38 grados."
+      },
+      {
+        "id": "laboratorio_leucocitos",
+        "tipo": "laboratorio",
+        "obligatorio": true,
+        "texto": "Leucocitosis (GB > 12.000) o leucopenia (GB < 4.000)."
+      }
+    ],
+    "confirmacion_microbiologica": {
+      "opcional": true,
+      "nota": "Se considera microbiologicamente comprobada cuando cumple, ademas de los 4 criterios, con una tecnica microbiologica positiva. Alternativas segun tecnica:",
+      "alternativas": [
+        { "id": "micro_aspirado_traqueal", "texto": "Aspirado traqueal >= 10^5 UFC/ml" },
+        { "id": "micro_lavado_broncoalveolar", "texto": "Lavado broncoalveolar > 10^4 UFC" },
+        { "id": "micro_cepillado_protegido", "texto": "Cepillado protegido > 10^3 UFC" }
+      ]
+    }
+  },
+
+  "INFCATETER": {
+    "nombre": "Infeccion del torrente sanguineo asociada a cateter venoso central (IPS-CC)",
+    "dispositivo_asociado": "CVC",
+    "combinacion": "alguno_de_los_criterios",
+    "ventana_temporal": {
+      "texto": "Se relaciona a un CC cuando este permanecio colocado al menos 48 hs luego del primer acceso, hasta 48 hs despues de su retiro.",
+      "minimo_horas_colocado": 48,
+      "ventana_post_retiro_horas": 48,
+      "nota": "Esta ventana es verificable determinsticamente por Python contra los eventos dispositivo_inicio/dispositivo_fin del CVC. No hace falta que la evalue Gemma."
+    },
+    "criterios": [
+      {
+        "id": "criterio_1_patogeno_conocido",
+        "tipo": "microbiologico",
+        "texto": "Aislamiento de un patogeno conocido (ej. S. aureus, E. coli, Candida spp.) en uno o mas hemocultivos y que el microorganismo no este relacionado con infeccion en otro sitio.",
+        "requiere_todos_los_subcriterios": false
+      },
+      {
+        "id": "criterio_2_contaminante_piel",
+        "tipo": "combinado",
+        "texto": "Para contaminantes comunes de la piel. Requiere la combinacion de un signo clinico y el resultado de laboratorio.",
+        "requiere_todos_los_subcriterios": true,
+        "subcriterios": [
+          {
+            "id": "criterio_2_clinico",
+            "tipo": "clinico",
+            "texto": "Al menos uno de: fiebre (>38 grados), escalofrios o hipotension.",
+            "combinacion": "alguno"
+          },
+          {
+            "id": "criterio_2_laboratorio",
+            "tipo": "laboratorio",
+            "texto": "Dos o mas hemocultivos positivos tomados en ocasiones separadas (dentro de un lapso de 48 hs) para contaminantes comunes de la piel (ej. Staphylococcus coagulasa negativo, Streptococcus grupo viridans)."
+          }
+        ]
+      }
+    ]
+  },
+
+  "INFURINARIA": {
+    "nombre": "Infeccion urinaria sintomatica asociada a cateter urinario (ITU-CU / ITUS)",
+    "dispositivo_asociado": "SV",
+    "combinacion": "todos_obligatorios",
+    "nota_combinacion": "Se deben cumplir los 3 puntos de forma obligatoria.",
+    "criterios": [
+      {
+        "id": "presencia_cateter",
+        "tipo": "dispositivo",
+        "obligatorio": true,
+        "texto": "CU permanente colocado por mas de 48 hs consecutivas, presente el dia del evento o removido el dia previo.",
+        "nota": "Verificable determinsticamente por Python contra los eventos de dispositivo SV. No hace falta que lo evalue Gemma."
+      },
+      {
+        "id": "clinico",
+        "tipo": "clinico",
+        "obligatorio": true,
+        "combinacion": "alguno",
+        "texto": "Al menos uno de: fiebre (>38 grados), dolor suprapubico, sensibilidad del angulo costovertebral, urgencia miccional, disuria o aumento de frecuencia urinaria."
+      },
+      {
+        "id": "microbiologico",
+        "tipo": "microbiologico",
+        "obligatorio": true,
+        "texto": "Urocultivo positivo con >= 10^5 ufc/ml con no mas de 2 especies de microorganismos."
+      }
+    ]
+  },
+
+  "INFHERIDAS": {
+    "nombre": "Infeccion de sitio quirurgico (ISQ)",
+    "dispositivo_asociado": null,
+    "combinacion": "alguno_de_los_tipos",
+    "nota_combinacion": "El manual distingue dos tipos. Dentro de cada tipo, basta con cumplir al menos uno de sus criterios.",
+    "tipos": [
+      {
+        "id": "incisional_profunda",
+        "nombre": "Incisional Profunda (TCS)",
+        "ventana_temporal": "Dentro de los 30 dias, o 1 anio si hay protesis.",
+        "alcance": "Involucra tejidos profundos (fascia y musculo).",
+        "combinacion": "alguno",
+        "criterios": [
+          {
+            "id": "prof_drenaje_purulento",
+            "texto": "Drenaje purulento desde la incision profunda."
+          },
+          {
+            "id": "prof_dehiscencia",
+            "texto": "Dehiscencia espontanea o apertura por cirujano con cultivo positivo; o si no hay cultivo, que presente fiebre (>38 grados) o dolor local.",
+            "nota": "Si el cultivo es negativo, NO cumple el criterio."
+          },
+          {
+            "id": "prof_absceso",
+            "texto": "Absceso u otra evidencia de infeccion visualizada por examen directo, reoperacion, histopatologia o radiologia."
+          }
+        ]
+      },
+      {
+        "id": "organos_cavidades",
+        "nombre": "De Organos / Cavidades (OC)",
+        "ventana_temporal": "Dentro de los 30 dias, o 1 anio si hay protesis.",
+        "alcance": "Involucra cualquier parte manipulada excepto piel, fascia o musculo profundo.",
+        "combinacion": "alguno",
+        "criterios": [
+          {
+            "id": "oc_pus_drenaje",
+            "texto": "Presencia de pus por el drenaje situado en el organo o cavidad."
+          },
+          {
+            "id": "oc_cultivo_positivo",
+            "texto": "Cultivo positivo de fluidos o tejidos obtenidos asepticamente."
+          },
+          {
+            "id": "oc_absceso",
+            "texto": "Absceso u otra evidencia de infeccion visualizada por examen directo, reoperacion, histopatologia o radiologia."
+          }
+        ]
+      }
+    ]
+  }
+}

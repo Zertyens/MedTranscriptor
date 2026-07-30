@@ -12,12 +12,12 @@ y conteos, deliberadamente aburrido.
 from __future__ import annotations
 
 import json
-import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
 
+import apache2
 from modelos import Episodio, Evento
 
 _SCHEMA_DIR = Path(__file__).parent / "schema"
@@ -32,6 +32,10 @@ class ProyeccionCampo:
     valor: Any
     evento_ids: list[str] = field(default_factory=list)
     advertencias: list[str] = field(default_factory=list)
+    # Desglose opcional para campos compuestos. Hoy solo lo usa el APACHE II:
+    # clickear SCORE tiene que mostrar las 12 variables con su valor, sus
+    # puntos y de que evento salio cada una, no una lista plana de 20 ids.
+    detalle: dict[str, Any] | None = None
 
 
 class ErrorProyeccion(Exception):
@@ -170,11 +174,14 @@ def _instancias_dispositivo(
             continue
 
         inicio_dt = _parse_dt(inicio.timestamp_clinico)
-        horas = (fin_dt - inicio_dt).total_seconds() / 3600
-        if horas < 0:
+        if fin_dt < inicio_dt:
             advertencias.append(f"{dispositivo} instancia {inst_id}: el fin es anterior al inicio")
             continue
-        dias = max(1, math.ceil(horas / 24)) if horas > 0 or fin is not None or egreso is not None else 1
+        # Metodologia VIHDA: se cuentan fechas calendario distintas, no horas
+        # transcurridas. "Un dia calendario no debe interpretarse como 24
+        # horas": el dia de colocacion es el dia 1 y el de remocion tambien
+        # cuenta. Por eso 1/3 23:00 -> 2/3 01:00 (2hs reales) da 2 dias.
+        dias = (fin_dt.date() - inicio_dt.date()).days + 1
         instancias.append(_Instancia(inst_id, inicio, fin, dias, evento_ids))
 
     return instancias, advertencias
@@ -299,7 +306,8 @@ def f_tiss_promedio(episodio: Episodio, vigentes: list[Evento], arg: str | None)
 
 
 # ---------------------------------------------------------------------------
-# APACHE II: stub para el paso 3. Ya resuelve que eventos le corresponden.
+# APACHE II. El calculo vive en apache2.py; aca solo se arma la ventana de
+# 24hs y se traduce el resultado a ProyeccionCampo.
 # ---------------------------------------------------------------------------
 
 def _eventos_primeras_24h(episodio: Episodio, vigentes: list[Evento]) -> list[Evento]:
@@ -313,18 +321,29 @@ def _eventos_primeras_24h(episodio: Episodio, vigentes: list[Evento]) -> list[Ev
 
 def f_apache_score(episodio: Episodio, vigentes: list[Evento], arg: str | None) -> ProyeccionCampo:
     eventos = _eventos_primeras_24h(episodio, vigentes)
-    advertencias = ["apache_score: pendiente (paso 3)"]
-    if not eventos:
-        advertencias.append("sin eventos fisiologico_24h en las primeras 24h")
-    return ProyeccionCampo(valor=None, evento_ids=[e.id for e in eventos], advertencias=advertencias)
+    resultado = apache2.calcular(episodio, eventos)
+    # Solo se citan los eventos que efectivamente aportaron puntos, no todos
+    # los de la ventana: si no, clickear SCORE muestra ruido.
+    ids = sorted({c.evento_id for c in resultado.componentes if c.evento_id})
+    return ProyeccionCampo(
+        valor=resultado.score,
+        evento_ids=ids,
+        advertencias=resultado.advertencias,
+        detalle=resultado.to_dict(),
+    )
 
 
 def f_apache_probabilidad(episodio: Episodio, vigentes: list[Evento], arg: str | None) -> ProyeccionCampo:
     eventos = _eventos_primeras_24h(episodio, vigentes)
-    advertencias = ["apache_probabilidad: pendiente (paso 3)"]
-    if not eventos:
-        advertencias.append("sin eventos fisiologico_24h en las primeras 24h")
-    return ProyeccionCampo(valor=None, evento_ids=[e.id for e in eventos], advertencias=advertencias)
+    resultado = apache2.calcular(episodio, eventos)
+    probabilidad, advertencias = apache2.probabilidad_muerte(resultado, episodio)
+    ids = sorted({c.evento_id for c in resultado.componentes if c.evento_id})
+    return ProyeccionCampo(
+        valor=probabilidad,
+        evento_ids=ids,
+        advertencias=advertencias,
+        detalle={"score_apache": resultado.score, "confiable": resultado.confiable},
+    )
 
 
 # ---------------------------------------------------------------------------

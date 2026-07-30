@@ -1,0 +1,227 @@
+{
+  "_meta": {
+    "descripcion": "Tablas de puntos del APACHE II. Son dato, no codigo: apache2.py solo hace lookup contra este archivo.",
+    "fuente": "Knaus WA, Draper EA, Wagner DP, Zimmermann JE. APACHE-II: a severity of disease classification system. Crit Care Med 1985; 13(10):819-29.",
+    "_validacion_pendiente": true,
+    "_nota_validacion": "Los valores de este archivo fueron transcriptos de la tabla clasica del APACHE II y NO fueron verificados todavia contra el paper original. Antes de la demo tiene que revisarlos alguien del equipo con acceso al paper. Es el mismo criterio que aplicamos a TISS-28 y VIHDA: ningun numero clinico entra sin un segundo par de ojos.",
+    "como_leer_rangos": "Cada lista 'rangos' esta ordenada de mayor a menor. Se recorre de arriba hacia abajo y gana el PRIMER rango cuyo 'desde' es <= valor. El ultimo rango tiene 'desde': null y actua como catch-all para todo lo que quedo por debajo. Este formato no deja huecos posibles.",
+    "score_maximo": 71,
+    "composicion_maximo": "60 puntos fisiologicos (12 variables x 5) + 6 por edad + 5 por salud cronica"
+  },
+
+  "variables_fisiologicas": {
+    "temperatura_c": {
+      "etiqueta": "Temperatura central",
+      "unidad": "C",
+      "rangos": [
+        { "desde": 41,   "puntos": 4 },
+        { "desde": 39,   "puntos": 3 },
+        { "desde": 38.5, "puntos": 1 },
+        { "desde": 36,   "puntos": 0 },
+        { "desde": 34,   "puntos": 1 },
+        { "desde": 32,   "puntos": 2 },
+        { "desde": 30,   "puntos": 3 },
+        { "desde": null, "puntos": 4 }
+      ]
+    },
+    "pam_mmhg": {
+      "etiqueta": "Presion arterial media",
+      "unidad": "mmHg",
+      "rangos": [
+        { "desde": 160,  "puntos": 4 },
+        { "desde": 130,  "puntos": 3 },
+        { "desde": 110,  "puntos": 2 },
+        { "desde": 70,   "puntos": 0 },
+        { "desde": 50,   "puntos": 2 },
+        { "desde": null, "puntos": 4 }
+      ]
+    },
+    "fc_lpm": {
+      "etiqueta": "Frecuencia cardiaca",
+      "unidad": "lpm",
+      "rangos": [
+        { "desde": 180,  "puntos": 4 },
+        { "desde": 140,  "puntos": 3 },
+        { "desde": 110,  "puntos": 2 },
+        { "desde": 70,   "puntos": 0 },
+        { "desde": 55,   "puntos": 2 },
+        { "desde": 40,   "puntos": 3 },
+        { "desde": null, "puntos": 4 }
+      ]
+    },
+    "fr_rpm": {
+      "etiqueta": "Frecuencia respiratoria",
+      "unidad": "rpm",
+      "rangos": [
+        { "desde": 50,   "puntos": 4 },
+        { "desde": 35,   "puntos": 3 },
+        { "desde": 25,   "puntos": 1 },
+        { "desde": 12,   "puntos": 0 },
+        { "desde": 10,   "puntos": 1 },
+        { "desde": 6,    "puntos": 2 },
+        { "desde": null, "puntos": 4 }
+      ]
+    },
+    "ph_arterial": {
+      "etiqueta": "pH arterial",
+      "unidad": "",
+      "rangos": [
+        { "desde": 7.7,  "puntos": 4 },
+        { "desde": 7.6,  "puntos": 3 },
+        { "desde": 7.5,  "puntos": 1 },
+        { "desde": 7.33, "puntos": 0 },
+        { "desde": 7.25, "puntos": 2 },
+        { "desde": 7.15, "puntos": 3 },
+        { "desde": null, "puntos": 4 }
+      ]
+    },
+    "hco3_meq_l": {
+      "etiqueta": "Bicarbonato serico",
+      "unidad": "mEq/L",
+      "sustituye_a": "ph_arterial",
+      "nota": "Solo se usa si no hay ningun pH arterial registrado en la ventana. APACHE II lo admite como sustituto cuando no hay gases.",
+      "rangos": [
+        { "desde": 52,   "puntos": 4 },
+        { "desde": 41,   "puntos": 3 },
+        { "desde": 32,   "puntos": 1 },
+        { "desde": 22,   "puntos": 0 },
+        { "desde": 18,   "puntos": 2 },
+        { "desde": 15,   "puntos": 3 },
+        { "desde": null, "puntos": 4 }
+      ]
+    },
+    "sodio_meq_l": {
+      "etiqueta": "Sodio serico",
+      "unidad": "mEq/L",
+      "rangos": [
+        { "desde": 180,  "puntos": 4 },
+        { "desde": 160,  "puntos": 3 },
+        { "desde": 155,  "puntos": 2 },
+        { "desde": 150,  "puntos": 1 },
+        { "desde": 130,  "puntos": 0 },
+        { "desde": 120,  "puntos": 2 },
+        { "desde": 111,  "puntos": 3 },
+        { "desde": null, "puntos": 4 }
+      ]
+    },
+    "potasio_meq_l": {
+      "etiqueta": "Potasio serico",
+      "unidad": "mEq/L",
+      "rangos": [
+        { "desde": 7,    "puntos": 4 },
+        { "desde": 6,    "puntos": 3 },
+        { "desde": 5.5,  "puntos": 1 },
+        { "desde": 3.5,  "puntos": 0 },
+        { "desde": 3,    "puntos": 1 },
+        { "desde": 2.5,  "puntos": 2 },
+        { "desde": null, "puntos": 4 }
+      ]
+    },
+    "creatinina_mg_dl": {
+      "etiqueta": "Creatinina serica",
+      "unidad": "mg/dL",
+      "duplica_si_falla_renal_aguda": true,
+      "rangos": [
+        { "desde": 3.5,  "puntos": 4 },
+        { "desde": 2,    "puntos": 3 },
+        { "desde": 1.5,  "puntos": 2 },
+        { "desde": 0.6,  "puntos": 0 },
+        { "desde": null, "puntos": 2 }
+      ]
+    },
+    "hematocrito_pct": {
+      "etiqueta": "Hematocrito",
+      "unidad": "%",
+      "rangos": [
+        { "desde": 60,   "puntos": 4 },
+        { "desde": 50,   "puntos": 2 },
+        { "desde": 46,   "puntos": 1 },
+        { "desde": 30,   "puntos": 0 },
+        { "desde": 20,   "puntos": 2 },
+        { "desde": null, "puntos": 4 }
+      ]
+    },
+    "leucocitos_mil_mm3": {
+      "etiqueta": "Leucocitos",
+      "unidad": "miles/mm3",
+      "rangos": [
+        { "desde": 40,   "puntos": 4 },
+        { "desde": 20,   "puntos": 2 },
+        { "desde": 15,   "puntos": 1 },
+        { "desde": 3,    "puntos": 0 },
+        { "desde": 1,    "puntos": 2 },
+        { "desde": null, "puntos": 4 }
+      ]
+    }
+  },
+
+  "oxigenacion": {
+    "etiqueta": "Oxigenacion",
+    "nota_rama": "La rama depende del FiO2 DEL MISMO GAS. Si FiO2 >= 0.5 se usa el gradiente alveolo-arterial; si FiO2 < 0.5 se usa la PaO2. Por eso la oxigenacion se evalua evento por evento y recien despues se toma el maximo de puntos entre eventos.",
+    "umbral_fio2": 0.5,
+    "presion_atmosferica_default_mmhg": 760,
+    "nota_presion": "760 mmHg es nivel del mar. Importa si la UCI esta en altura (Salta, Bariloche, Jujuy).",
+    "presion_vapor_agua_mmhg": 47,
+    "cociente_respiratorio": 0.8,
+    "formula_aado2": "fio2 * (Patm - 47) - paco2 / 0.8 - pao2",
+    "rangos_aado2": [
+      { "desde": 500,  "puntos": 4 },
+      { "desde": 350,  "puntos": 3 },
+      { "desde": 200,  "puntos": 2 },
+      { "desde": null, "puntos": 0 }
+    ],
+    "rangos_pao2": [
+      { "desde": 71,   "puntos": 0 },
+      { "desde": 61,   "puntos": 1 },
+      { "desde": 55,   "puntos": 3 },
+      { "desde": null, "puntos": 4 }
+    ]
+  },
+
+  "glasgow": {
+    "etiqueta": "Escala de Glasgow",
+    "formula": "puntos = 15 - GCS",
+    "min_gcs": 3,
+    "max_gcs": 15,
+    "nota": "No es una tabla de rangos: los puntos son directamente 15 menos el puntaje de Glasgow. El PEOR valor es el GCS mas bajo."
+  },
+
+  "edad": {
+    "etiqueta": "Edad",
+    "unidad": "anios",
+    "rangos": [
+      { "desde": 75,   "puntos": 6 },
+      { "desde": 65,   "puntos": 5 },
+      { "desde": 55,   "puntos": 3 },
+      { "desde": 45,   "puntos": 2 },
+      { "desde": null, "puntos": 0 }
+    ]
+  },
+
+  "salud_cronica": {
+    "etiqueta": "Salud cronica",
+    "condicion": "Solo se aplican estos puntos si el episodio tiene enfermedad_cronica_grave = true (insuficiencia organica severa preexistente o inmunocompromiso).",
+    "por_moting": {
+      "1": { "puntos": 5, "categoria_knaus": "no quirurgico", "descripcion": "Patologia Medica" },
+      "2": { "puntos": 5, "categoria_knaus": "postoperatorio de urgencia", "descripcion": "Cirugia de Urgencia" },
+      "3": { "puntos": 2, "categoria_knaus": "postoperatorio programado", "descripcion": "Cirugia Programada" },
+      "4": { "puntos": 5, "categoria_knaus": "no quirurgico", "descripcion": "Politrauma" },
+      "99": { "puntos": 5, "categoria_knaus": "desconocido", "descripcion": "Desconocido", "nota": "DECISION: ante MOTING desconocido se asume el caso de mas puntos (5) y se emite advertencia. Es la opcion conservadora: no subestima la gravedad." }
+    }
+  },
+
+  "mortalidad": {
+    "descripcion": "Regresion logistica de Knaus 1985 para estimar PROBABMORT.",
+    "formula": "logit = intercepto + (score * coef_apache) + coef_postop_urgencia (si MOTING=2) + peso_categoria_diagnostica",
+    "intercepto": -3.517,
+    "coef_apache": 0.146,
+    "coef_postop_urgencia": 0.603,
+    "moting_postop_urgencia": 2,
+    "peso_categoria_diagnostica": 0,
+    "_nota_peso_diagnostico": "DECISION EXPLICITA, no es una omision. El paper de Knaus usa una tabla de ~50 categorias diagnosticas especificas de ingreso. El campo MOTING de SATI-Q solo tiene 4 categorias amplias (patologia medica / cirugia urgencia / cirugia programada / politrauma) que NO mapean a las de Knaus. Se usa peso 0 y se emite una advertencia visible en la proyeccion. La alternativa era agregar un campo mas al episodio con la categoria Knaus; se descarto por tiempo. Consecuencia: PROBABMORT tiene un sesgo sistematico conocido y declarado.",
+    "resultado_en_porcentaje": true,
+    "min": 0,
+    "max": 99.9,
+    "decimales": 2
+  }
+}
