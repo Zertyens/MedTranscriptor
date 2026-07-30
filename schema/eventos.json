@@ -1,0 +1,224 @@
+{
+  "_meta": {
+    "descripcion": "Contrato del libro de movimientos. Define la tabla episodio, el sobre de un evento, el enum cerrado de tipos y el shape del payload de cada tipo. Es lo que Gemma tiene que devolver y lo que Python valida antes de insertar.",
+    "principio": "Los eventos son el dato guardado. La fila SATI-Q nunca se almacena, se proyecta al vuelo desde estos eventos.",
+    "inmutabilidad": "Nunca UPDATE, nunca DELETE. Corregir = insertar un evento nuevo con corrige_a_evento_id apuntando al viejo. Un evento esta 'vigente' si ningun otro evento lo corrige."
+  },
+
+  "episodio": {
+    "descripcion": "La cuenta a la que pertenecen los movimientos. Datos administrativos del ingreso. No es un evento.",
+    "campos": {
+      "id": { "tipo": "texto", "requerido": true, "nota": "uuid4" },
+      "idcentro": { "tipo": "texto", "requerido": true, "nota": "hash del centro, viene de config" },
+      "idpaciente": { "tipo": "entero", "requerido": true, "min": 1, "max": 999999999 },
+      "reingreso": { "tipo": "entero", "requerido": true, "enum": [0, 1] },
+      "fecha_ingreso": { "tipo": "fecha_iso", "requerido": true, "formato": "aaaa-mm-dd" },
+      "hora_ingreso": { "tipo": "hora", "requerido": true, "formato": "HH:mm:ss" },
+      "tipo": { "tipo": "texto", "requerido": true, "enum": ["A", "P", "N"], "nota": "alcance hackathon: A" },
+      "edad": { "tipo": "entero", "requerido": true },
+      "sexo": { "tipo": "texto", "requerido": true, "enum": ["M", "F", "O"] },
+      "moting": { "tipo": "entero", "requerido": true, "enum": [1, 2, 3, 4, 99] },
+      "procedencia": { "tipo": "entero", "requerido": true, "min": 1, "max": 14 },
+      "enfermedad_cronica_grave": {
+        "tipo": "booleano",
+        "requerido": true,
+        "nota": "Insuficiencia organica severa preexistente o inmunocompromiso, segun Knaus 1985. Solo si es true se aplican los puntos de salud cronica del APACHE II."
+      },
+      "abierto": { "tipo": "booleano", "requerido": true, "nota": "false una vez cargado el evento egreso" }
+    },
+    "nota_fechas": "En la base todo se guarda en ISO (aaaa-mm-dd). La conversion a dd/mm/aaaa pasa unicamente en el exportador de CSV."
+  },
+
+  "evento": {
+    "descripcion": "Sobre comun a todos los tipos. Los campos de este sobre no cambian segun el tipo; lo que cambia es el payload.",
+    "campos": {
+      "id": { "tipo": "texto", "requerido": true, "nota": "uuid4" },
+      "episodio_id": { "tipo": "texto", "requerido": true },
+      "timestamp_clinico": {
+        "tipo": "datetime_iso",
+        "requerido": true,
+        "nota": "CUANDO PASO en el paciente. Es el que usan todos los calculos. Lo infiere Gemma del texto ('se colocó el martes a las 10')."
+      },
+      "timestamp_carga": {
+        "tipo": "datetime_iso",
+        "requerido": true,
+        "nota": "CUANDO SE REGISTRO en el sistema. Lo pone Python, nunca Gemma. Puede ser muy posterior al clinico."
+      },
+      "autor": { "tipo": "texto", "requerido": true, "nota": "quien dicto o cargo" },
+      "tipo_evento": { "tipo": "texto", "requerido": true, "enum": ["dispositivo_inicio", "dispositivo_fin", "evento_adverso", "fisiologico_24h", "tiss_diario", "egreso"] },
+      "payload_json": { "tipo": "objeto", "requerido": true, "nota": "shape segun tipo_evento, ver 'payloads'" },
+      "fuente": { "tipo": "texto", "requerido": true, "enum": ["audio_gemma", "texto_gemma", "manual", "semilla"] },
+      "confianza": {
+        "tipo": "decimal",
+        "requerido": true,
+        "min": 0.0,
+        "max": 1.0,
+        "nota": "1.0 para fuente 'manual' y 'semilla'. Para fuentes gemma lo devuelve el modelo."
+      },
+      "texto_crudo": {
+        "tipo": "texto",
+        "requerido": true,
+        "nota": "La CITA TEXTUAL del fragmento que justifica este evento. No la nota entera: el pedacito. Es lo que se muestra en el panel de trazabilidad."
+      },
+      "corrige_a_evento_id": { "tipo": "texto", "requerido": false, "nota": "null salvo que este evento corrija a otro" }
+    },
+    "umbral_revision": 0.75,
+    "nota_umbral": "DECISION: confianza < 0.75 no se inserta directo, va a la bandeja de revision humana. El medico confirma o edita. Nunca se autocompleta en silencio."
+  },
+
+  "catalogos": {
+    "dispositivos": {
+      "VI": "Ventilacion invasiva",
+      "VNI": "Ventilacion no invasiva",
+      "CAFO": "Canula de alto flujo",
+      "CVC": "Cateter venoso central",
+      "SE": "Sonda enteral",
+      "SV": "Sonda vesical",
+      "SNG": "Sonda nasogastrica"
+    },
+    "eventos_adversos": {
+      "NEUMONIA": { "descripcion": "Neumonia asociada a ARM", "requiere_verificacion_vihda": true, "dispositivo_asociado": "VI" },
+      "INFCATETER": { "descripcion": "Infeccion asociada a CVC", "requiere_verificacion_vihda": true, "dispositivo_asociado": "CVC" },
+      "INFURINARIA": { "descripcion": "Infeccion urinaria asociada a sonda vesical", "requiere_verificacion_vihda": true, "dispositivo_asociado": "SV" },
+      "INFHERIDAS": { "descripcion": "Infeccion de herida", "requiere_verificacion_vihda": true, "dispositivo_asociado": null },
+      "ESCARAS": { "descripcion": "Ulcera por presion", "requiere_verificacion_vihda": false, "dispositivo_asociado": null },
+      "AUTOEXTUBACION": { "descripcion": "Extubacion no programada", "requiere_verificacion_vihda": false, "dispositivo_asociado": "VI" },
+      "DESLIZSNG": { "descripcion": "Desplazamiento accidental de SNG", "requiere_verificacion_vihda": false, "dispositivo_asociado": "SNG" },
+      "DESLIZCAMA": { "descripcion": "Caida de la cama o durante traslado", "requiere_verificacion_vihda": false, "dispositivo_asociado": null }
+    },
+    "resultado_egreso": {
+      "1": "Alta al piso de internacion",
+      "2": "Alta domiciliaria",
+      "3": "Alta voluntaria",
+      "4": "Se traslada a otra institucion",
+      "5": "Fallece",
+      "6": "Terapia intermedia",
+      "7": "Unidad coronaria",
+      "8": "Otra",
+      "9": "Homecare",
+      "10": "Se traslada a otra UCI",
+      "11": "Centro de atencion del paciente cronico"
+    }
+  },
+
+  "payloads": {
+    "dispositivo_inicio": {
+      "descripcion": "Se COLOCO un dispositivo.",
+      "campos": {
+        "dispositivo": { "tipo": "texto", "requerido": true, "enum": ["VI", "VNI", "CAFO", "CVC", "SE", "SV", "SNG"] },
+        "instancia_id": {
+          "tipo": "texto",
+          "requerido": true,
+          "nota": "Identifica ESTE dispositivo fisico concreto. Dos CVC simultaneos son dos instancia_id distintas y suman sus dias por separado. Convencion: <DISPOSITIVO>-<n>, ej. CVC-1, CVC-2."
+        },
+        "sitio": { "tipo": "texto", "requerido": false, "nota": "ej. 'subclavia derecha'. Solo informativo, no entra al CSV." }
+      }
+    },
+    "dispositivo_fin": {
+      "descripcion": "Se RETIRO un dispositivo. Si nunca llega, el proyector cierra la instancia en el timestamp del egreso.",
+      "campos": {
+        "dispositivo": { "tipo": "texto", "requerido": true, "enum": ["VI", "VNI", "CAFO", "CVC", "SE", "SV", "SNG"] },
+        "instancia_id": { "tipo": "texto", "requerido": true, "nota": "debe matchear una instancia_id abierta del mismo dispositivo" },
+        "motivo": { "tipo": "texto", "requerido": false, "enum": ["programado", "accidental", "recambio", "egreso"] }
+      },
+      "nota_autoextubacion": "Una autoextubacion genera DOS eventos: un dispositivo_fin de VI con motivo='accidental' y un evento_adverso con codigo=AUTOEXTUBACION. El primero cierra los dias de VI, el segundo prende el flag. No se mezclan."
+    },
+    "evento_adverso": {
+      "descripcion": "Ocurrio un evento adverso. La infeccion la declara el medico; Gemma nunca decide si hay infeccion, solo verifica si el registro sostiene la declaracion.",
+      "campos": {
+        "codigo": { "tipo": "texto", "requerido": true, "enum": ["NEUMONIA", "INFCATETER", "INFURINARIA", "INFHERIDAS", "ESCARAS", "AUTOEXTUBACION", "DESLIZSNG", "DESLIZCAMA"] },
+        "adjudicado_por": { "tipo": "texto", "requerido": true, "enum": ["medico"], "nota": "Siempre 'medico'. La declaracion de infeccion es una decision clinica, no del modelo." },
+        "verificacion_vihda": {
+          "tipo": "objeto",
+          "requerido": false,
+          "nota": "Solo para codigos con requiere_verificacion_vihda=true. Gemma compara la declaracion del medico contra schema/vihda_criterios.json y devuelve que esta documentado y que falta. No agrega, no quita, no reclasifica la declaracion del medico.",
+          "campos": {
+            "cumplidos": { "tipo": "lista_texto", "nota": "ids de criterios VIHDA con evidencia textual encontrada" },
+            "faltantes": { "tipo": "lista_texto", "nota": "ids de criterios VIHDA sin evidencia encontrada en el registro" }
+          }
+        },
+        "instancia_id": { "tipo": "texto", "requerido": false, "nota": "que dispositivo concreto se infecto, si aplica" }
+      },
+      "nota_conteo": "Cada evento_adverso vigente cuenta 1 en el campo NUM correspondiente. El flag es 1 si NUM >= 1. Un mismo episodio de infeccion NO se carga dos veces: si el medico lo repite, se corrige via corrige_a_evento_id."
+    },
+    "fisiologico_24h": {
+      "descripcion": "Mediciones fisiologicas. Solo alimentan el APACHE II las que caen dentro de las primeras 24hs desde el ingreso.",
+      "campos": {
+        "mediciones": {
+          "tipo": "objeto",
+          "requerido": true,
+          "nota": "Todas las claves son opcionales. Se manda solo lo que el medico dicto. Un evento puede traer varias mediciones de un mismo momento.",
+          "claves": {
+            "temperatura_c": "Temperatura central, grados Celsius",
+            "pam_mmhg": "Presion arterial media, mmHg",
+            "fc_lpm": "Frecuencia cardiaca, latidos por minuto",
+            "fr_rpm": "Frecuencia respiratoria, respiraciones por minuto",
+            "fio2": "Fraccion inspirada de oxigeno, 0.21 a 1.0",
+            "pao2_mmhg": "PaO2 arterial, mmHg. Se usa si fio2 < 0.5",
+            "aado2_mmhg": "Gradiente alveolo-arterial, mmHg. Se usa si fio2 >= 0.5",
+            "ph_arterial": "pH arterial",
+            "sodio_meq_l": "Sodio serico, mEq/L",
+            "potasio_meq_l": "Potasio serico, mEq/L",
+            "creatinina_mg_dl": "Creatinina serica, mg/dL",
+            "hematocrito_pct": "Hematocrito, %",
+            "leucocitos_mil_mm3": "Leucocitos, miles por mm3",
+            "glasgow": "Puntaje de Glasgow, 3 a 15"
+          }
+        },
+        "falla_renal_aguda": { "tipo": "booleano", "requerido": false, "nota": "Si true, los puntos de creatinina se duplican (Knaus 1985)." }
+      },
+      "nota_peor_valor": "Python NO promedia ni elige el mas alto a ojo. Para cada variable calcula los puntos APACHE de CADA medicion registrada en las primeras 24hs y se queda con el maximo de puntos. Asi funciona bien para variables bidireccionales como temperatura, donde tanto 33 como 41 son 'peores' que 37.",
+      "nota_faltantes": "Variable sin ninguna medicion en las primeras 24hs = 0 puntos (convencion APACHE II para dato no disponible). El proyector devuelve ademas la lista de variables faltantes para mostrarla como advertencia en la UI."
+    },
+    "tiss_diario": {
+      "descripcion": "Carga de intervenciones terapeuticas de un dia. Uno por dia de internacion.",
+      "campos": {
+        "fecha": { "tipo": "fecha_iso", "requerido": true, "formato": "aaaa-mm-dd" },
+        "items": {
+          "tipo": "lista_texto",
+          "requerido": false,
+          "nota": "Codigos de los items TISS-28 aplicados ese dia. Gemma dice QUE items se aplicaron; Python suma los pesos desde schema/tiss28_items.json. Gemma no suma."
+        },
+        "puntaje_manual": {
+          "tipo": "entero",
+          "requerido": false,
+          "min": 0,
+          "max": 77,
+          "nota": "Escape hatch: si el medico ya tiene el puntaje calculado lo carga directo. Si viene 'items', gana 'items'."
+        }
+      }
+    },
+    "egreso": {
+      "descripcion": "Cierra el episodio. Debe haber exactamente uno.",
+      "campos": {
+        "resultado": { "tipo": "entero", "requerido": true, "min": 1, "max": 11, "nota": "ver catalogos.resultado_egreso" }
+      },
+      "nota": "La fecha y hora de egreso NO van en el payload: salen del timestamp_clinico del propio evento. Una sola fuente de verdad."
+    }
+  },
+
+  "contrato_gemma": {
+    "descripcion": "Lo que el modelo tiene que devolver al traducir una nota de evolucion. Se le pasa este shape en el prompt.",
+    "nota_estructurada": "Gemma via Google AI API no soporta responseSchema ni function calling (a diferencia de Gemini). La salida JSON se pide por prompt y se parsea con extraccion tolerante (buscar el primer bloque {...} balanceado). El validador contra este contrato es la red de seguridad.",
+    "forma_respuesta": {
+      "eventos": [
+        {
+          "tipo_evento": "uno del enum",
+          "timestamp_clinico": "aaaa-mm-ddTHH:mm:ss",
+          "payload": "segun payloads[tipo_evento]",
+          "confianza": "0.0 a 1.0",
+          "texto_crudo": "cita textual del fragmento que justifica este evento"
+        }
+      ],
+      "no_entendido": ["fragmentos que el modelo no pudo mapear a ningun evento"]
+    },
+    "reglas_para_el_modelo": [
+      "No calcules. No sumes dias. No cuentes episodios. No infieras totales.",
+      "No inventes tipos de evento ni codigos fuera de los enums.",
+      "Si la nota no dice la hora, usa 00:00:00 y baja la confianza.",
+      "Si la nota dice un dia relativo ('ayer', 'el martes'), resolvelo contra la fecha de referencia que se te pasa.",
+      "texto_crudo es obligatorio y tiene que ser un fragmento LITERAL de la nota, no un resumen.",
+      "Si no estas seguro, bajá la confianza. No adivines para completar."
+    ]
+  }
+}

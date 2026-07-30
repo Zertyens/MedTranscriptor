@@ -1,0 +1,64 @@
+,"Tabla de Datos, Descripción y tipos de Campo *",,,
+,* Todos los campos son obligatorios. El archivo a generar es solo la solapa Anexo A4 en formato CSV (archivos separado por comas),,,
+,,,,
+,NOMBRE DEL CAMPO,DESCRIPCION ,TIPO DE CAMPO,CODIGOS DE CAMPO Y RANGO
+,IDCENTRO,Identificador único del Centro,Texto,Numero de serie o Expresión conformada por números y letras generada automáticamente para cada Centro al registrarse en el Programa SATI-Q (número de serie o licencia)
+,IDPACIENTE,Identificador único asociado con un paciente,Número entero,Número entero positivo unico entre 1 y 999.999.999. Inicio desde primer egreso de la Unidad ocurrido a partir del 1-1-del año en curso
+,REINGRESO,"El episodio de internación es un reingreso, definido de acuerdo al diccionario de datos (Anexo A2).",Número entero,0: NO; 1: SI
+,FECHING,Fecha de ingreso a la Unidad de Cuidados Intensivos (UCI),Fecha,Fecha válida dd/mm/aaaa
+,HORAING,Hora de ingreso a la UCI,Hora,Hora: HH:mm:ss 
+,FECEGR,Fecha de egreso de la UCI,Fecha,Fecha válida dd/mm/aaaa
+,HORAEGR,Hora de egreso de la UCI,Hora,Hora: HH:mm:ss
+,ESTADIA,Estadía del paciente en la UCI,Número entero ,Días. 1-365. Cálculo según metodología descripta en Anexo A2
+,TIPO,Tipo de Paciente segun su edad,Texto,Un caracter: A: Adulto; P: Pediatrico; N: Neonatal
+,EDAD,Edad del paciente al ingreso en la UCI,Número entero,"Para pacientes pediátricos, meses. entre 1 -191 
+Para pacientes adultos, años entre 16 y 150.
+Para pacientes neonatales, dias, entre 0 y 100"
+,SEXO,Sexo genotípico del paciente,Texto,Un caracter: M|F|O (M: masculino; F:femenino; O:otro)
+,MOTING,"Motivo de ingreso en la UCI, una única entidad clasificada según:
+- Para adulto es la categoria Knauss del puntaje Apache II
+- Para pediatria o neo consultar Anexo A3 
+- Desconocido para ambos tipos = 99",Número entero,"Adultos: 1: Patologia Medica | 2: Cirugia de Urgencia | 3: Cirugia Programada | 4: Politrauma
+
+Pediatria o Neo: 1: Respiratorio | 2: Cardiológico | 3: Neurologico |4: Postquirurgico | 5: Causa externa | 10: Otros|"
+,PROCEDENCIA,Ubicación del paciente antes de ingresar en la UCI,Número entero,1-Guardia|2-Sector de clinica|3-Sala de parto|4-Piso de otro hospital|5-UTI de otro hospital|6-Terapia Intermedia|7-Sector de cirugia|8-Via publica|9-Unidad coronaria|10-Quirofano programado|11-Quirofano de urgencia|12-Otra|13-Atencion domiciliaria|14-Guardia de otro hospital
+,SCORE,"Valor del puntaje de predicción de mortalidad. 
+- Para adultos APACHE II. va de 0 a 71 (puntaje), 
+- Para Pediátricos/Neonatales PIM3 va de -6 a +25 (coeficiente).
+ Ver metodología de cálculo en diccionario de datos (Anexo A2)",Número decimal,"Número entero positivo 0 y 71 (Adultos)
+Numero decila entre -6.00 y +25.00 (Pediatricos y Neonatales)"
+,PROBABMORT,"Probabilidad de muerte estimada por puntaje APACHE II o PIM3, según el paciente sea adulto o pediátrico. Ver metodología de cálculo en diccionario de datos (Anexo A2)",Número decimal,0-99.9
+,VI,Uso de Ventilación Invasiva (VI) durante la internación en la UCI.,Número entero,0: NO; 1: SI
+,DIASVI,Días totales de Ventilación Invasiva. Es la sumatoria de los días de VI de cada uno de los períodos de VI requeridos durante la internación actual en la UCI,Número entero,0 si VI=0; Si VI=1 el rango de valores será entre 1 y 365;  Las horas de VI serán registradas como 1 día (ver diccionario de datos)
+,VNI,Uso de Ventilación no Invasiva (VNI) durante la internación en la UCI.,Número entero,0: NO; 1: SI
+,DIASVNI,Días totales de Ventilación no Invasiva. Es la sumatoria de los días de VNI de cada uno de los periodos de VNI requeridos durante la internación en la UCI,Número entero,0 si VNI=0; Si VNI=1 el rango de valores será entre 1 y 365; Las horas de VNI serán registradas como 1 día .Ej. si el paciente estuvo 12 horas con VNI se registrará 1 día (ver diccionario de datos)
+,CAFO,Uso de Cánula de Alto Flujo (CAFO) durante la internación en la UCI,Número entero,0: NO; 1: SI
+,DIASCAFO,Días totales de Cánula de alto flujo. Es la sumatoria de los días de CAFO de cada uno de los periodos de CAFO requeridos durante la internación en UCI,Número entero,0 si CAFO=0; Si CAFO=1 el rango de valores será entre 1 y 365; Las horas de CAFO serán registradas como 1 día. Ej. si el paciente estuvo 12 hs en CAFO se registrará 1 día
+,NEUMONIA,"Presencia de al menos 1 episodio de Neumonía asociada a ARM (VI) durante la internación actual en la UCI, definida según criterios del Programa VIDHA (ver diccionario de datos)",Número entero,0: NO; 1: SI
+,NEUMONIANUM,Número de episodios de Neumonía asociada a ARM (VI) durante la internación actual en la UCI,Número entero,0 si NEUMONIA=0; Si NEUMONIA=1 el rango de valores será entre 1 y 99
+,AUTOEXTUBACION,"Ocurrencia de algún evento de Extubación no programada durante la internación actual en UCI, según definición descripta en diccionario de datos",Número entero,0: NO; 1: SI
+,AUTOEXTUBACIONNUM,Número de extubaciones no programadas presentadas durante la internación en la UCI,Número entero,0 si AUTOEXTUBACION =0; Si AUTOEXTUBACION =1 el rango de valores será entre 1 y 99 ; 
+,CVC,Uso de al menos 1 Catéter Venoso Central (CVC) durante la internación en la UCI. No incluye uso de Acceso arterial,Número entero,0: NO; 1: SI
+,DIASCVC,Días totales de uso de CVC . Es la sumatoria de los días de cada uno de los períodos de CVC requeridos durante la internación actual en la UCI. No incluye los días de acceso arterial. Si un paciente tiene 2 CVC colocados en forma simultánea se contarán los días que cada CVC está colocado,Número entero,0 si CVC =0; Si CVC =1 el rango de valores será entre 1 y 365; Las horas de CVC serán registradas como 1 día .Ej. si el paciente estuvo 12 horas con CVC se registrará 1 día (ver diccionario de datos)
+,INFCATETER,"Presencia de al menos 1 episodio de Infección asociada a CVC durante la internación actual en la UCI, definida según criterios del Programa VIDHA (ver diccionario de datos )",Número entero,0: NO; 1: SI
+,INFCATETERNUM,Número de infecciones asociadas a CVC ocurridas durante la internación en UCI,Número entero,0 si INFCATETER =0; Si INFCATETER =1 el rango de valores será entre 1 y 99
+,SE,Uso de Sonda enteral (SE) durante la internación en UCI,Número entero,0: NO; 1: SI
+,DIASSE,Días totales de SE. Es la sumatoria de los días de cada uno de los períodos de SE requeridos durante la internación actual en la UCI,Número entero,0 si sonda enteral =0; Si sonda enteral =1 el rango de valores será entre 1 y 365;Las horas de SE serán registradas como 1 día .Ej. si el paciente estuvo 12 horas con SE se registrará 1 día (ver diccionario de datos)
+,SV,Uso de Sonda vesical (SV) durante la internación en UCI,Número entero,0: NO; 1: SI
+,DIASSV,Días totales de SV . Es la sumatoria de los días de cada uno de los períodos de SV requeridos durante la internación actual en la UCI,Número entero,0 si sonda vesical =0; Si sonda vesical =1 el rango de valores será entre 1 y 365;Las horas de SV serán registradas como 1 día .Ej. si el paciente estuvo 12 horas con SV se registrará 1 día (ver diccionario de datos)
+,INFURINARIA,"Presencia de al menos 1 episodio de Infección asociada a sonda vesical durante la internación actual en la UCI, definida según criterios del Programa VIDHA (ver diccionario de datos)",Número entero,0: NO; 1: SI
+,INFURINARIANUM,Número de infecciones urinarias asociadas a sonda vesical ocurridas durante la internación actual en la UCI,Número entero,0 si INFURINARIA=0; Si INFURINARIA=1 el rango de valores será entre 1 y 99 ; 
+,ESCARAS,"Presencia de Escaras durante la internación actual en la UCI, según definido en diccionario de datos",Número entero,0: NO; 1: SI
+,ESCARASNUM,Número de escaras presentadas por el paciente durante la internación actual en la UCI,Número entero,0 ESCARAS=0; Si ESCARAS=1 el rango de valores será entre 1 y 99 ; 
+,INFHERIDAS,"Presencia de al menos 1 Infección de heridas ocurrida durante la internación actual en la UCI, definida según criterios del Programa VIDHA",Número entero,0: NO; 1: SI
+,INFHERIDASNUM,Número de infecciones de heridas ocurridas durante la internación actual en la UCI,Número entero,0 si INFHERIDAS=0; Si INFHERIDAS=1 el rango de valores será entre 1 y 99 ; 
+,SNG,Uso de Sonda nasogástrica durante la internación en UCI,Número entero,0: NO; 1: SI
+,DIASSNG,Días totales de SNG . Es la sumatoria de los días de cada uno de los períodos de SNG requeridos durante la internación actual en la UCI,Número entero,0 si SNG =0; Si SNG =1 el rango de valores será entre 1 y 365; Las horas de SNG serán registradas como 1 día .Ej. si el paciente estuvo 12 horas con SNG se registrará 1 día
+,DESLIZSNG,"Presencia de al menos 1 episodio de desplazamiento de la Sonda Nasogástrica (SNG) durante la internación actual en la UCI , según definido en diccionario de datos",Número entero,0: NO; 1: SI
+,DESLIZSNGNUM,Número de episodios de desplazamientos de SNG,Número entero,0 si DESLIZSNG=0; Si DESLIZSNG=1 el rango de valores será entre 1 y 99 
+,DESLIZCAMA,"Ocurrencia de algún episodio de deslizamiento de la cama durante la internación actual en la UCI , según definido en diccionario de datos ",Número entero,0: NO; 1: SI
+,DESLIZCAMANUM,Número de deslizamientos de la cama presentados durante la internación en UCI,Número entero,0 si DESLIZCAMA=0; Si DESLIZCAMA =1 el rango de valores será entre 1 y 99 ; 
+,TISSMIN,Valor mínimo de puntaje TISS que presentó el paciente durante la internación en la UCI. Ver diccionario de datos,Número entero,Número entero positivo entre 0 y 77. 
+,TISSMAX,Valor máximo de puntaje TISS que presentó el paciente durante la internación en la UCI. Ver diccionario de datos,Número entero,Número entero positivo entre 0 y 77. 
+,TISSPROMEDIO,"Promedio de puntaje TISS presentado durante la internación, calculado como sumatoria del puntaje total dividido el Número de registros del paciente",Número decimal,Número entre 0.00 y 77.00 
+,RESULTADO,Resultado del tratamiento al egreso de la UCI. ,Número entero,1-Alta al piso de internación|2-Alta domiciliaria|3-Alta voluntaria|4-Se traslada a otra institucion|5-fallece|6-terapia intermedia|7-Unidad coronaria|8-Otra|9-Homecare|10-Se traslada a otra UCI|11-Centro de atención del paciente crónico

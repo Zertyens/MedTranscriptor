@@ -1,0 +1,119 @@
+=== CONTEXTO DEL PROYECTO (no modificar) ===
+
+QUÉ ESTAMOS CONSTRUYENDO
+Un sistema para Unidades de Cuidados Intensivos que registra la internación
+como eventos diarios y, al egreso, genera automáticamente la fila de reporte
+oficial del programa SATI-Q (Argentina), validada y trazable, más un resumen
+en lenguaje llano para el paciente.
+
+EL PROBLEMA REAL
+SATI-Q es el registro nacional de calidad en terapia intensiva. Cada UCI
+adherida debe reportar una fila CSV de 48 campos por paciente egresado:
+días de uso de cada dispositivo (respirador, catéter venoso central, sondas),
+eventos adversos, infecciones, y scores de gravedad (APACHE II, TISS-28).
+Hoy esa planilla se llena a mano al egreso, reconstruyendo días y eventos
+desde el legajo clínico. Se pierden horas de personal, se cometen errores,
+y no hay forma de auditar de dónde salió cada número.
+
+LA IDEA CENTRAL (metáfora que usamos en todo el proyecto)
+Es como un resumen bancario. Hoy la UCI anota EL SALDO ("6 días de catéter").
+Nosotros guardamos LOS MOVIMIENTOS ("se colocó el martes 10hs", "se retiró
+el domingo"). El saldo se calcula solo, y cada número es rastreable hasta
+los movimientos que lo generaron.
+Técnicamente: event sourcing. Los eventos son el dato guardado. La fila de
+48 campos NUNCA se almacena, se proyecta al vuelo cada vez.
+
+REPARTO DE RESPONSABILIDADES (regla dura, no negociable)
+Gemma decide QUÉ PASÓ clínicamente. Python solo LLEVA LA CUENTA.
+
+Gemma (modelo de lenguaje, corre local con Ollama) hace exactamente 3 cosas:
+  1. TRADUCE: convierte lo que dicta o escribe el médico en eventos fechados.
+  2. ADJUDICA: decide si un cuadro clínico cumple los criterios del manual
+     VIHDA para infección asociada a dispositivo (RAG sobre el manual).
+  3. EXPLICA: al egreso, genera un resumen en lenguaje llano para el
+     paciente y su familia.
+
+Python determinista hace todo lo demás:
+  - suma de días de dispositivo
+  - cálculo de estadía
+  - APACHE II, TISS min/máx/promedio
+  - validación de las 48 reglas
+  - exportación del CSV
+
+Gemma NUNCA calcula, suma, cuenta días ni valida. Si un módulo necesita un
+número, lo calcula Python. Esto no es preferencia de estilo: un error
+aritmético de un LLM en un registro clínico es inaceptable y el jurado lo
+va a preguntar.
+
+VOCABULARIO FIJO (usar estos nombres exactos, en todos los módulos)
+
+Tablas: episodio, evento
+
+Tipos de evento (enum cerrado, no inventar otros):
+  dispositivo_inicio, dispositivo_fin, evento_adverso,
+  fisiologico_24h, tiss_diario, egreso
+
+Dispositivos (códigos oficiales SATI-Q):
+  VI   = ventilación invasiva
+  VNI  = ventilación no invasiva
+  CAFO = cánula de alto flujo
+  CVC  = catéter venoso central
+  SE   = sonda enteral
+  SV   = sonda vesical
+  SNG  = sonda nasogástrica
+
+Eventos adversos:
+  NEUMONIA, INFCATETER, INFURINARIA, INFHERIDAS,
+  ESCARAS, AUTOEXTUBACION, DESLIZSNG, DESLIZCAMA
+
+Estructura de un evento:
+  id, episodio_id, timestamp_clinico, timestamp_carga, autor,
+  tipo_evento, payload_json, fuente, confianza, texto_crudo,
+  corrige_a_evento_id
+
+REGLAS DE NEGOCIO QUE SE VIOLAN SIEMPRE (memorizarlas)
+1. Los eventos son INMUTABLES. Corregir = insertar un evento nuevo que
+   apunta al viejo vía corrige_a_evento_id. Nunca UPDATE, nunca DELETE.
+2. ESTADIA cuenta el día de ingreso pero NO el de egreso. Si ingresa y
+   egresa el mismo día, es 1 día.
+3. Un dispositivo usado menos de 24h cuenta como 1 día completo.
+4. Dos instancias simultáneas del mismo dispositivo (ej. 2 CVC) suman sus
+   días por separado. Por eso cada evento de dispositivo lleva instancia_id.
+5. APACHE II usa los PEORES valores de las primeras 24h, no los del día.
+6. Los campos flag (0/1) y los campos NUM se DERIVAN de los eventos, nunca
+   se cargan a mano.
+7. Decimales: máximo 2 dígitos, separador punto.
+8. Toda salida de Gemma lleva un nivel de confianza y una cita textual del
+   fragmento que la justifica. Confianza baja = va a revisión humana, nunca
+   se autocompleta en silencio.
+
+TRAZABILIDAD (es nuestro diferencial, no es opcional)
+Al proyectar los 48 campos, cada campo debe venir acompañado de la lista de
+ids de evento que lo originaron. En la demo, el jurado va a clickear un
+número y ver de qué eventos salió, con hora y autor.
+
+PRIVACIDAD
+El CSV de SATI-Q ya es anónimo por diseño: IDCENTRO es un hash e IDPACIENTE
+un entero secuencial. No hay nombre ni documento. Gemma corre local con
+Ollama, así que el dato del paciente nunca sale de la institución.
+El repositorio es público: NUNCA incluir datos reales de pacientes. Solo el
+paciente sintético inventado.
+
+CONTEXTO DE TRABAJO
+Hackathon. 8 horas totales, equipo de 4 personas de las cuales 2 no
+programan. Prioridad absoluta: que funcione y se pueda demostrar en vivo.
+- No optimices. No abstraigas. No agregues features que no se pidieron.
+- Código legible por sobre código corto.
+- Python puro. Sin frameworks web salvo Streamlit para la interfaz.
+- Si una decisión de diseño no está definida acá, elegí la opción más
+  simple y dejá un comentario # DECISION: explicando qué elegiste.
+- Si algo de este contexto es ambiguo o contradictorio, decilo antes de
+  escribir código. No lo resuelvas por tu cuenta en silencio.
+
+CRITERIOS DE EVALUACIÓN DEL HACKATHON
+Integración de Gemma 4 30 pts | Innovación e Impacto 30 pts |
+Funcionalidad 20 pts | Presentación y Writeup 20 pts
+Obligatorio bajo pena de invalidación: demo en vivo, writeup con video de
+3 minutos, repositorio público.
+
+=== FIN DEL CONTEXTO ===

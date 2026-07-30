@@ -1,0 +1,29 @@
+,Diccionario de Datos y Consideraciones Generales,
+,,
+,VARIABLE ,DEFINICION
+,Estadía,"Es el total de días que el paciente permaneció internado en la UCI. Según metodología de la Dirección Nacional de Estadística en Salud. Para el cálculo de los días de estada seguir el procedimiento siguiente: Computar el día de ingreso, pero no el de egreso. Ejemplo: a un paciente ingresado el 10 de marzo y egresado el 15 de marzo, le corresponden 5 días de estada. Cuando un paciente ingresa y egresa en el mismo día, computar un día de estadía. 
+"
+,Moting,Estas categorías diagnosticas se corresponden con los códigos diagnósticos de ingreso a UCI del registro SATI-Q. Las patologías incluidas se muestran en Anexo A3.
+,Neumonía asociada a ventilación mecánica,"Según criterios definidos por el Programa Nacional de Epidemiologia y Control de Infecciones Hospitalarias VIDHA.
+Disponible en https://codeinep.org/wp-content/uploads/2017/11/Manual-de-VIGILANCIA-VIHDA-2015.pdf"
+,Extubación no programada,"Retirada accidental (no programada) del Tubo endotraqueal debida a maniobras por parte del personal sanitario (por ej., cambios posturales, colocación en decúbito prono, traslados o procedimientos para pruebas diagnósticas o terapéuticas, aseo, etc.). Incluye la retirada del Tubo endotraqueal por el mismo paciente voluntaria o involuntariamente."
+,Deslizamiento de la cama,"Se contabilizarán las caídas de los enfermos de la cama, sentados o que deambulan sin el apoyo necesario.
+Se incluirán también las caídas registradas durante el traslado de los enfermos."
+,Infección asociada a catéter venoso central ,"Según criterios definidos por el Programa Nacional de Epidemiologia y Control de Infecciones Hospitalarias VIDHA.
+Disponible en https://codeinep.org/wp-content/uploads/2017/11/Manual-de-VIGILANCIA-VIHDA-2015.pdf"
+,Escaras,Úlcera de presión que se produce en cualquier área del cuerpo que esté expuesta a una presión elevada y prolongada cuando el paciente conserva la misma posición.
+,Infección de heridas,"Según criterios definidos por el Programa Nacional de Epidemiologia y Control de Infecciones Hospitalarias VIDHA.
+Disponible en https://codeinep.org/wp-content/uploads/2017/11/Manual-de-VIGILANCIA-VIHDA-2015.pdf"
+,Desplazamiento de sonda nasogástrica,Retirada accidental (no programada) de la sonda nasogástrica.
+,Infección urinaria asociada a sonda vesical ,"Según criterios definidos por el VIDHA.
+Disponible en https://codeinep.org/wp-content/uploads/2017/11/Manual-de-VIGILANCIA-VIHDA-2015.pdf"
+,Reingreso,"Reingreso dentro de las 48 hs a la UCI por causa no prevista; relacionado o no al motivo de ingreso original, e independientemente de donde hayan transcurrido las últimas 48 horas."
+,"Puntaje PIM3 
+ (sólo para pacientes pediátricos o neo)","Puntaje de predicción de mortalidad en UCI. Cálculo realizado en la primer hora de contacto del paciente con el médico intensivista de acuerdo a los coeficientes propuestos en la publicación original . Straney L, Clements A, et al. Paediatric Index of Mortality 3: An Updated Model for Predicting Mortality in Pediatric Intensive Care.
+Pediatr Crit Care Med 2013; 14:673–681"
+,"Puntaje APACHE II
+ (sólo para pacientes adultos)","Puntaje de predicción de mortalidad hospitalaria. Los enfermos se clasifican mediante el registro de una serie de 12 parámetros fisiológicos obtenido evaluando los PEORES VALORES registrados del enfermo durante las primeras 24 horas tras su ingreso en la UCI. El score y la probabilidad de muerte se calcularán de acuerdo a los coeficientes propuestos en el trabajo original: Knaus WA, Draper EA, Wagner DP, Zimmermann JE. APACHE-II: a severity of disease classification system. Crit Care Med 1985; 13(10):819-29"
+,Puntaje TISS28,"Puntaje de intervención terapéutica TISS. Cálculo según fórmula de la publicación original : Reis Miranda D, de Rijk A, Schaufeli W.: Simplified Therapeutic Intervention Scoring System: The TISS-28-items. Results from a multicenter study. Crit Care Med 1996; 24(1):64-73"
+,Cálculo de días uso de dispositivos,"Los días de uso de dispositivos constituyen los denominadores para el calculo de los indicadores de calidad, ejemplo infecciones asociadas. Para su calculo se utiliza la metodología propuesta por el Programa Nacional de Epidemiologia y Control de Infecciones Hospitalarias VIDHA. Se contará como 1 día de uso a los dispositivos que se utilicen menos de 24h. 
+Metodología disponible en https://codeinep.org/wp-content/uploads/2017/11/Manual-de-VIGILANCIA-VIHDA-2015.pdf"
+,Formatos Números Decimales,Deberán ser 2 dígitos como máximo y estar separados por . (punto)

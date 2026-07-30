@@ -1,0 +1,674 @@
+{
+  "_meta": {
+    "descripcion": "Fuente unica de verdad de la fila de reporte SATI-Q. Este archivo maneja TRES cosas a la vez: (1) el orden exacto de columnas del CSV, (2) como se proyecta cada campo desde los eventos, (3) como se valida cada campo. Si un campo cambia, se cambia aca y en ningun otro lado.",
+    "version_eds": "EDS V2026 SATI-Q",
+    "fuente_definiciones": "Anexo A1",
+    "fuente_orden_columnas": "Anexo A4 (header literal)",
+    "total_campos": 49,
+    "nota_49_vs_48": "El CONTEXT.txt del proyecto dice 48 campos. El header real del Anexo A4 tiene 49. Manda el A4.",
+    "alcance_hackathon": "Solo pacientes adultos (TIPO=A). Los rangos pediatricos/neonatales quedan documentados en 'nota_pediatria' pero no se calculan.",
+    "formato": {
+      "fecha": "dd/mm/aaaa",
+      "hora": "HH:mm:ss",
+      "decimal_separador": ".",
+      "decimal_max_digitos": 2,
+      "csv_delimitador": ",",
+      "csv_encoding": "utf-8"
+    },
+    "origenes": {
+      "config": "Valor fijo de la configuracion del centro. No sale de eventos.",
+      "episodio": "Dato administrativo cargado al abrir el episodio. No sale de eventos.",
+      "derivado": "Python lo calcula proyectando los eventos. NUNCA se carga a mano."
+    },
+    "trazabilidad": "Todo campo con origen 'derivado' devuelve, ademas del valor, la lista de ids de evento que lo originaron. Los campos 'config' y 'episodio' devuelven lista vacia."
+  },
+
+  "campos": [
+    {
+      "orden": 1,
+      "nombre": "IDCENTRO",
+      "descripcion": "Identificador unico del Centro",
+      "origen": "config",
+      "funcion": "constante_centro",
+      "validacion": { "tipo": "texto", "min_largo": 1, "max_largo": 64 },
+      "depende_de": []
+    },
+    {
+      "orden": 2,
+      "nombre": "IDPACIENTE",
+      "descripcion": "Identificador unico asociado con un paciente. Entero secuencial desde el primer egreso del anio en curso.",
+      "origen": "episodio",
+      "funcion": "campo_episodio",
+      "arg": "idpaciente",
+      "validacion": { "tipo": "entero", "min": 1, "max": 999999999 },
+      "depende_de": []
+    },
+    {
+      "orden": 3,
+      "nombre": "REINGRESO",
+      "descripcion": "Reingreso dentro de las 48hs a la UCI por causa no prevista (Anexo A2).",
+      "origen": "episodio",
+      "funcion": "campo_episodio",
+      "arg": "reingreso",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "depende_de": [],
+      "nota": "DECISION: para el hackathon se carga a mano al abrir el episodio. Es derivable si existiera el episodio previo del mismo paciente (delta < 48hs entre egreso anterior e ingreso actual)."
+    },
+    {
+      "orden": 4,
+      "nombre": "FECHING",
+      "descripcion": "Fecha de ingreso a la UCI",
+      "origen": "episodio",
+      "funcion": "campo_episodio",
+      "arg": "fecha_ingreso",
+      "validacion": { "tipo": "fecha", "formato": "dd/mm/aaaa" },
+      "depende_de": []
+    },
+    {
+      "orden": 5,
+      "nombre": "HORAING",
+      "descripcion": "Hora de ingreso a la UCI",
+      "origen": "episodio",
+      "funcion": "campo_episodio",
+      "arg": "hora_ingreso",
+      "validacion": { "tipo": "hora", "formato": "HH:mm:ss" },
+      "depende_de": []
+    },
+    {
+      "orden": 6,
+      "nombre": "FECEGR",
+      "descripcion": "Fecha de egreso de la UCI",
+      "origen": "derivado",
+      "funcion": "egreso_fecha",
+      "regla": "Fecha del unico evento tipo 'egreso' del episodio (parte fecha de timestamp_clinico).",
+      "validacion": { "tipo": "fecha", "formato": "dd/mm/aaaa", "no_anterior_a": "FECHING" },
+      "depende_de": ["egreso"]
+    },
+    {
+      "orden": 7,
+      "nombre": "HORAEGR",
+      "descripcion": "Hora de egreso de la UCI",
+      "origen": "derivado",
+      "funcion": "egreso_hora",
+      "regla": "Hora del evento tipo 'egreso' (parte hora de timestamp_clinico).",
+      "validacion": { "tipo": "hora", "formato": "HH:mm:ss" },
+      "depende_de": ["egreso"]
+    },
+    {
+      "orden": 8,
+      "nombre": "ESTADIA",
+      "descripcion": "Estadia del paciente en la UCI, en dias.",
+      "origen": "derivado",
+      "funcion": "estadia",
+      "regla": "max(1, (FECEGR - FECHING).days). Computa el dia de ingreso pero NO el de egreso. Si ingresa y egresa el mismo dia, 1. Verificado contra el ejemplo del Anexo A4: 01/03/2025 -> 01/04/2025 = 31.",
+      "validacion": { "tipo": "entero", "min": 1, "max": 365 },
+      "depende_de": ["egreso"]
+    },
+    {
+      "orden": 9,
+      "nombre": "TIPO",
+      "descripcion": "Tipo de paciente segun su edad",
+      "origen": "episodio",
+      "funcion": "campo_episodio",
+      "arg": "tipo",
+      "validacion": { "tipo": "texto", "enum": ["A", "P", "N"] },
+      "depende_de": [],
+      "nota": "Alcance hackathon: solo 'A' (adulto). P y N se validan pero no se calcula su score."
+    },
+    {
+      "orden": 10,
+      "nombre": "EDAD",
+      "descripcion": "Edad del paciente al ingreso en la UCI",
+      "origen": "episodio",
+      "funcion": "campo_episodio",
+      "arg": "edad",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": {
+          "campo": "TIPO",
+          "casos": {
+            "A": { "min": 16, "max": 150, "unidad": "anios" },
+            "P": { "min": 1, "max": 191, "unidad": "meses" },
+            "N": { "min": 0, "max": 100, "unidad": "dias" }
+          }
+        }
+      },
+      "depende_de": [],
+      "nota": "La EDAD ademas alimenta el componente etario del APACHE II."
+    },
+    {
+      "orden": 11,
+      "nombre": "SEXO",
+      "descripcion": "Sexo genotipico del paciente",
+      "origen": "episodio",
+      "funcion": "campo_episodio",
+      "arg": "sexo",
+      "validacion": { "tipo": "texto", "enum": ["M", "F", "O"] },
+      "depende_de": []
+    },
+    {
+      "orden": 12,
+      "nombre": "MOTING",
+      "descripcion": "Motivo de ingreso. Para adultos es la categoria Knauss del APACHE II.",
+      "origen": "episodio",
+      "funcion": "campo_episodio",
+      "arg": "moting",
+      "validacion": {
+        "tipo": "entero",
+        "enum": [1, 2, 3, 4, 99],
+        "etiquetas": {
+          "1": "Patologia Medica",
+          "2": "Cirugia de Urgencia",
+          "3": "Cirugia Programada",
+          "4": "Politrauma",
+          "99": "Desconocido"
+        }
+      },
+      "depende_de": [],
+      "nota_pediatria": "Para P/N el enum es [1,2,3,4,5,10,99] segun Anexo A3. Fuera de alcance.",
+      "nota": "Este campo determina los puntos de salud cronica del APACHE II (categoria Knaus): 3 = postoperatorio programado (2 pts), 2 y 4 = urgencia (5 pts), 1 = no quirurgico (5 pts). Solo se aplican si el episodio tiene enfermedad_cronica_grave = true."
+    },
+    {
+      "orden": 13,
+      "nombre": "PROCEDENCIA",
+      "descripcion": "Ubicacion del paciente antes de ingresar en la UCI",
+      "origen": "episodio",
+      "funcion": "campo_episodio",
+      "arg": "procedencia",
+      "validacion": {
+        "tipo": "entero",
+        "min": 1,
+        "max": 14,
+        "etiquetas": {
+          "1": "Guardia",
+          "2": "Sector de clinica",
+          "3": "Sala de parto",
+          "4": "Piso de otro hospital",
+          "5": "UTI de otro hospital",
+          "6": "Terapia Intermedia",
+          "7": "Sector de cirugia",
+          "8": "Via publica",
+          "9": "Unidad coronaria",
+          "10": "Quirofano programado",
+          "11": "Quirofano de urgencia",
+          "12": "Otra",
+          "13": "Atencion domiciliaria",
+          "14": "Guardia de otro hospital"
+        }
+      },
+      "depende_de": []
+    },
+    {
+      "orden": 14,
+      "nombre": "SCORE",
+      "descripcion": "Puntaje de prediccion de mortalidad. Adultos: APACHE II.",
+      "origen": "derivado",
+      "funcion": "apache_score",
+      "regla": "APACHE II = puntos fisiologicos (PEORES valores de las primeras 24hs desde el ingreso) + puntos por edad + puntos por salud cronica. Los peores valores se seleccionan por variable sobre todos los eventos 'fisiologico_24h' con timestamp_clinico dentro de las 24hs del ingreso.",
+      "validacion": { "tipo": "entero", "min": 0, "max": 71 },
+      "depende_de": ["fisiologico_24h"],
+      "nota_pediatria": "Para P/N seria PIM3, decimal entre -6.00 y 25.00. Fuera de alcance."
+    },
+    {
+      "orden": 15,
+      "nombre": "PROBABMORT",
+      "descripcion": "Probabilidad de muerte estimada por el score, en porcentaje.",
+      "origen": "derivado",
+      "funcion": "apache_probabilidad",
+      "regla": "Regresion logistica de Knaus 1985: logit = -3.517 + (APACHE II * 0.146) + (0.603 si postoperatorio de urgencia) + coeficiente por categoria diagnostica. PROBABMORT = 100 / (1 + exp(-logit)), redondeado a 2 decimales.",
+      "validacion": { "tipo": "decimal", "min": 0, "max": 99.9, "decimales": 2 },
+      "depende_de": ["fisiologico_24h"]
+    },
+
+    {
+      "orden": 16,
+      "nombre": "VI",
+      "descripcion": "Uso de Ventilacion Invasiva durante la internacion",
+      "origen": "derivado",
+      "funcion": "dispositivo_flag",
+      "arg": "VI",
+      "regla": "1 si existe al menos un evento dispositivo_inicio con dispositivo=VI, si no 0.",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "DIASVI",
+      "depende_de": ["dispositivo_inicio"]
+    },
+    {
+      "orden": 17,
+      "nombre": "DIASVI",
+      "descripcion": "Dias totales de Ventilacion Invasiva",
+      "origen": "derivado",
+      "funcion": "dispositivo_dias",
+      "arg": "VI",
+      "regla": "Suma de dias de cada instancia por separado. Por instancia: max(1, ceil((fin - inicio) / 24hs)). Menos de 24hs cuenta 1 dia completo. Si no hay dispositivo_fin, el fin es el timestamp del evento 'egreso'.",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "VI", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 365 } }
+      },
+      "par_flag": "VI",
+      "depende_de": ["dispositivo_inicio", "dispositivo_fin", "egreso"]
+    },
+    {
+      "orden": 18,
+      "nombre": "VNI",
+      "descripcion": "Uso de Ventilacion no Invasiva durante la internacion",
+      "origen": "derivado",
+      "funcion": "dispositivo_flag",
+      "arg": "VNI",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "DIASVNI",
+      "depende_de": ["dispositivo_inicio"]
+    },
+    {
+      "orden": 19,
+      "nombre": "DIASVNI",
+      "descripcion": "Dias totales de Ventilacion no Invasiva",
+      "origen": "derivado",
+      "funcion": "dispositivo_dias",
+      "arg": "VNI",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "VNI", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 365 } }
+      },
+      "par_flag": "VNI",
+      "depende_de": ["dispositivo_inicio", "dispositivo_fin", "egreso"]
+    },
+    {
+      "orden": 20,
+      "nombre": "CAFO",
+      "descripcion": "Uso de Canula de Alto Flujo durante la internacion",
+      "origen": "derivado",
+      "funcion": "dispositivo_flag",
+      "arg": "CAFO",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "DIASCAFO",
+      "depende_de": ["dispositivo_inicio"]
+    },
+    {
+      "orden": 21,
+      "nombre": "DIASCAFO",
+      "descripcion": "Dias totales de Canula de Alto Flujo",
+      "origen": "derivado",
+      "funcion": "dispositivo_dias",
+      "arg": "CAFO",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "CAFO", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 365 } }
+      },
+      "par_flag": "CAFO",
+      "depende_de": ["dispositivo_inicio", "dispositivo_fin", "egreso"]
+    },
+
+    {
+      "orden": 22,
+      "nombre": "NEUMONIA",
+      "descripcion": "Al menos 1 episodio de Neumonia asociada a ARM, criterios VIHDA",
+      "origen": "derivado",
+      "funcion": "adverso_flag",
+      "arg": "NEUMONIA",
+      "regla": "1 si existe al menos un evento_adverso con codigo=NEUMONIA vigente (no corregido), si no 0.",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "NEUMONIANUM",
+      "depende_de": ["evento_adverso"],
+      "adjudica_gemma": true
+    },
+    {
+      "orden": 23,
+      "nombre": "NEUMONIANUM",
+      "descripcion": "Numero de episodios de Neumonia asociada a ARM",
+      "origen": "derivado",
+      "funcion": "adverso_num",
+      "arg": "NEUMONIA",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "NEUMONIA", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 99 } }
+      },
+      "par_flag": "NEUMONIA",
+      "depende_de": ["evento_adverso"]
+    },
+    {
+      "orden": 24,
+      "nombre": "AUTOEXTUBACION",
+      "descripcion": "Ocurrencia de extubacion no programada",
+      "origen": "derivado",
+      "funcion": "adverso_flag",
+      "arg": "AUTOEXTUBACION",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "AUTOEXTUBACIONNUM",
+      "depende_de": ["evento_adverso"],
+      "adjudica_gemma": false
+    },
+    {
+      "orden": 25,
+      "nombre": "AUTOEXTUBACIONNUM",
+      "descripcion": "Numero de extubaciones no programadas",
+      "origen": "derivado",
+      "funcion": "adverso_num",
+      "arg": "AUTOEXTUBACION",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "AUTOEXTUBACION", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 99 } }
+      },
+      "par_flag": "AUTOEXTUBACION",
+      "depende_de": ["evento_adverso"]
+    },
+
+    {
+      "orden": 26,
+      "nombre": "CVC",
+      "descripcion": "Uso de al menos 1 Cateter Venoso Central. No incluye acceso arterial.",
+      "origen": "derivado",
+      "funcion": "dispositivo_flag",
+      "arg": "CVC",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "DIASCVC",
+      "depende_de": ["dispositivo_inicio"]
+    },
+    {
+      "orden": 27,
+      "nombre": "DIASCVC",
+      "descripcion": "Dias totales de uso de CVC. Si hay 2 CVC simultaneos se cuentan los dias de cada uno.",
+      "origen": "derivado",
+      "funcion": "dispositivo_dias",
+      "arg": "CVC",
+      "regla": "Este es el caso que justifica instancia_id: dos CVC simultaneos SUMAN sus dias por separado, no se solapan.",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "CVC", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 365 } }
+      },
+      "par_flag": "CVC",
+      "depende_de": ["dispositivo_inicio", "dispositivo_fin", "egreso"]
+    },
+    {
+      "orden": 28,
+      "nombre": "INFCATETER",
+      "descripcion": "Al menos 1 infeccion asociada a CVC, criterios VIHDA",
+      "origen": "derivado",
+      "funcion": "adverso_flag",
+      "arg": "INFCATETER",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "INFCATETERNUM",
+      "depende_de": ["evento_adverso"],
+      "adjudica_gemma": true
+    },
+    {
+      "orden": 29,
+      "nombre": "INFCATETERNUM",
+      "descripcion": "Numero de infecciones asociadas a CVC",
+      "origen": "derivado",
+      "funcion": "adverso_num",
+      "arg": "INFCATETER",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "INFCATETER", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 99 } }
+      },
+      "par_flag": "INFCATETER",
+      "depende_de": ["evento_adverso"]
+    },
+
+    {
+      "orden": 30,
+      "nombre": "SE",
+      "descripcion": "Uso de Sonda Enteral",
+      "origen": "derivado",
+      "funcion": "dispositivo_flag",
+      "arg": "SE",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "DIASSE",
+      "depende_de": ["dispositivo_inicio"]
+    },
+    {
+      "orden": 31,
+      "nombre": "DIASSE",
+      "descripcion": "Dias totales de Sonda Enteral",
+      "origen": "derivado",
+      "funcion": "dispositivo_dias",
+      "arg": "SE",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "SE", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 365 } }
+      },
+      "par_flag": "SE",
+      "depende_de": ["dispositivo_inicio", "dispositivo_fin", "egreso"]
+    },
+    {
+      "orden": 32,
+      "nombre": "SV",
+      "descripcion": "Uso de Sonda Vesical",
+      "origen": "derivado",
+      "funcion": "dispositivo_flag",
+      "arg": "SV",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "DIASSV",
+      "depende_de": ["dispositivo_inicio"]
+    },
+    {
+      "orden": 33,
+      "nombre": "DIASSV",
+      "descripcion": "Dias totales de Sonda Vesical",
+      "origen": "derivado",
+      "funcion": "dispositivo_dias",
+      "arg": "SV",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "SV", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 365 } }
+      },
+      "par_flag": "SV",
+      "depende_de": ["dispositivo_inicio", "dispositivo_fin", "egreso"]
+    },
+    {
+      "orden": 34,
+      "nombre": "INFURINARIA",
+      "descripcion": "Al menos 1 infeccion urinaria asociada a sonda vesical, criterios VIHDA",
+      "origen": "derivado",
+      "funcion": "adverso_flag",
+      "arg": "INFURINARIA",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "INFURINARIANUM",
+      "depende_de": ["evento_adverso"],
+      "adjudica_gemma": true
+    },
+    {
+      "orden": 35,
+      "nombre": "INFURINARIANUM",
+      "descripcion": "Numero de infecciones urinarias asociadas a sonda vesical",
+      "origen": "derivado",
+      "funcion": "adverso_num",
+      "arg": "INFURINARIA",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "INFURINARIA", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 99 } }
+      },
+      "par_flag": "INFURINARIA",
+      "depende_de": ["evento_adverso"]
+    },
+
+    {
+      "orden": 36,
+      "nombre": "ESCARAS",
+      "descripcion": "Presencia de escaras (ulcera por presion) durante la internacion",
+      "origen": "derivado",
+      "funcion": "adverso_flag",
+      "arg": "ESCARAS",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "ESCARASNUM",
+      "depende_de": ["evento_adverso"],
+      "adjudica_gemma": false
+    },
+    {
+      "orden": 37,
+      "nombre": "ESCARASNUM",
+      "descripcion": "Numero de escaras presentadas",
+      "origen": "derivado",
+      "funcion": "adverso_num",
+      "arg": "ESCARAS",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "ESCARAS", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 99 } }
+      },
+      "par_flag": "ESCARAS",
+      "depende_de": ["evento_adverso"]
+    },
+    {
+      "orden": 38,
+      "nombre": "INFHERIDAS",
+      "descripcion": "Al menos 1 infeccion de herida, criterios VIHDA",
+      "origen": "derivado",
+      "funcion": "adverso_flag",
+      "arg": "INFHERIDAS",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "INFHERIDASNUM",
+      "depende_de": ["evento_adverso"],
+      "adjudica_gemma": true
+    },
+    {
+      "orden": 39,
+      "nombre": "INFHERIDASNUM",
+      "descripcion": "Numero de infecciones de heridas",
+      "origen": "derivado",
+      "funcion": "adverso_num",
+      "arg": "INFHERIDAS",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "INFHERIDAS", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 99 } }
+      },
+      "par_flag": "INFHERIDAS",
+      "depende_de": ["evento_adverso"]
+    },
+
+    {
+      "orden": 40,
+      "nombre": "SNG",
+      "descripcion": "Uso de Sonda Nasogastrica",
+      "origen": "derivado",
+      "funcion": "dispositivo_flag",
+      "arg": "SNG",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "DIASSNG",
+      "depende_de": ["dispositivo_inicio"]
+    },
+    {
+      "orden": 41,
+      "nombre": "DIASSNG",
+      "descripcion": "Dias totales de Sonda Nasogastrica",
+      "origen": "derivado",
+      "funcion": "dispositivo_dias",
+      "arg": "SNG",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "SNG", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 365 } }
+      },
+      "par_flag": "SNG",
+      "depende_de": ["dispositivo_inicio", "dispositivo_fin", "egreso"]
+    },
+    {
+      "orden": 42,
+      "nombre": "DESLIZSNG",
+      "descripcion": "Al menos 1 desplazamiento accidental de la SNG",
+      "origen": "derivado",
+      "funcion": "adverso_flag",
+      "arg": "DESLIZSNG",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "DESLIZSNGNUM",
+      "depende_de": ["evento_adverso"],
+      "adjudica_gemma": false
+    },
+    {
+      "orden": 43,
+      "nombre": "DESLIZSNGNUM",
+      "descripcion": "Numero de desplazamientos de SNG",
+      "origen": "derivado",
+      "funcion": "adverso_num",
+      "arg": "DESLIZSNG",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "DESLIZSNG", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 99 } }
+      },
+      "par_flag": "DESLIZSNG",
+      "depende_de": ["evento_adverso"]
+    },
+    {
+      "orden": 44,
+      "nombre": "DESLIZCAMA",
+      "descripcion": "Ocurrencia de caida de la cama, sentado o deambulando, incluyendo traslados",
+      "origen": "derivado",
+      "funcion": "adverso_flag",
+      "arg": "DESLIZCAMA",
+      "validacion": { "tipo": "entero", "enum": [0, 1] },
+      "par_num": "DESLIZCAMANUM",
+      "depende_de": ["evento_adverso"],
+      "adjudica_gemma": false
+    },
+    {
+      "orden": 45,
+      "nombre": "DESLIZCAMANUM",
+      "descripcion": "Numero de deslizamientos de la cama",
+      "origen": "derivado",
+      "funcion": "adverso_num",
+      "arg": "DESLIZCAMA",
+      "validacion": {
+        "tipo": "entero",
+        "condicional": { "campo": "DESLIZCAMA", "si_vale": 0, "entonces": { "min": 0, "max": 0 }, "si_no": { "min": 1, "max": 99 } }
+      },
+      "par_flag": "DESLIZCAMA",
+      "depende_de": ["evento_adverso"]
+    },
+
+    {
+      "orden": 46,
+      "nombre": "TISSMIN",
+      "descripcion": "Valor minimo de puntaje TISS-28 durante la internacion",
+      "origen": "derivado",
+      "funcion": "tiss_min",
+      "regla": "min() de los puntajes de todos los eventos tiss_diario vigentes.",
+      "validacion": { "tipo": "entero", "min": 0, "max": 77 },
+      "depende_de": ["tiss_diario"]
+    },
+    {
+      "orden": 47,
+      "nombre": "TISSMAX",
+      "descripcion": "Valor maximo de puntaje TISS-28 durante la internacion",
+      "origen": "derivado",
+      "funcion": "tiss_max",
+      "regla": "max() de los puntajes de todos los eventos tiss_diario vigentes.",
+      "validacion": { "tipo": "entero", "min": 0, "max": 77, "no_menor_que": "TISSMIN" },
+      "depende_de": ["tiss_diario"]
+    },
+    {
+      "orden": 48,
+      "nombre": "TISSPROMEDIO",
+      "descripcion": "Promedio de puntaje TISS-28: sumatoria dividida el numero de registros del paciente",
+      "origen": "derivado",
+      "funcion": "tiss_promedio",
+      "regla": "sum(puntajes) / cantidad_de_eventos_tiss_diario, redondeado a 2 decimales, separador punto.",
+      "validacion": { "tipo": "decimal", "min": 0, "max": 77, "decimales": 2 },
+      "depende_de": ["tiss_diario"]
+    },
+    {
+      "orden": 49,
+      "nombre": "RESULTADO",
+      "descripcion": "Resultado del tratamiento al egreso de la UCI",
+      "origen": "derivado",
+      "funcion": "egreso_resultado",
+      "regla": "Campo 'resultado' del payload del evento 'egreso'.",
+      "validacion": {
+        "tipo": "entero",
+        "min": 1,
+        "max": 11,
+        "etiquetas": {
+          "1": "Alta al piso de internacion",
+          "2": "Alta domiciliaria",
+          "3": "Alta voluntaria",
+          "4": "Se traslada a otra institucion",
+          "5": "Fallece",
+          "6": "Terapia intermedia",
+          "7": "Unidad coronaria",
+          "8": "Otra",
+          "9": "Homecare",
+          "10": "Se traslada a otra UCI",
+          "11": "Centro de atencion del paciente cronico"
+        }
+      },
+      "depende_de": ["egreso"]
+    }
+  ]
+}
