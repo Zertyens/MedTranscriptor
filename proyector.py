@@ -36,6 +36,11 @@ class ProyeccionCampo:
     # clickear SCORE tiene que mostrar las 12 variables con su valor, sus
     # puntos y de que evento salio cada una, no una lista plana de 20 ids.
     detalle: dict[str, Any] | None = None
+    # Cuando el valor fue cargado a mano en vez de derivado de los eventos.
+    # Nunca se pisa en silencio: la UI tiene que poder mostrarlo distinto y
+    # decir quien lo puso y por que.
+    ajuste_manual: dict[str, Any] | None = None
+    valor_derivado: Any = None
 
 
 class ErrorProyeccion(Exception):
@@ -64,13 +69,31 @@ def _parse_dt(ts: str) -> datetime:
 # ---------------------------------------------------------------------------
 
 def _evento_egreso(vigentes: list[Evento]) -> Evento | None:
+    """El egreso del episodio. Deberia haber a lo sumo uno.
+
+    Si hay mas de uno, NO se explota: gana el ultimo cargado y se avisa por
+    advertencia (ver _advertir_egresos_duplicados). Antes esto tiraba
+    ErrorProyeccion, y como la proyeccion se calcula al abrir el paciente, un
+    egreso duplicado dejaba la aplicacion inusable: no se podia ni entrar a
+    corregirlo. Un dato inconsistente tiene que verse, no romper la pantalla."""
     egresos = _por_tipo(vigentes, "egreso")
-    if len(egresos) > 1:
-        raise ErrorProyeccion(
-            f"El episodio tiene {len(egresos)} eventos 'egreso' vigentes. "
-            "Debe haber a lo sumo 1 (si se cargo mal, se corrige, no se agrega otro)."
-        )
-    return egresos[0] if egresos else None
+    if not egresos:
+        return None
+    # Desempate por timestamp_clinico: dos egresos cargados en el mismo
+    # segundo tienen el mismo timestamp_carga, y sin este segundo criterio
+    # cual gana dependeria del orden en que vinieron de la base.
+    return max(egresos, key=lambda e: (e.timestamp_carga, e.timestamp_clinico))
+
+
+def _advertir_egresos_duplicados(vigentes: list[Evento]) -> str | None:
+    egresos = _por_tipo(vigentes, "egreso")
+    if len(egresos) <= 1:
+        return None
+    fechas = ", ".join(sorted(e.timestamp_clinico[:16] for e in egresos))
+    return (
+        f"Hay {len(egresos)} egresos cargados ({fechas}). Se usa el ultimo, pero solo "
+        "puede haber uno: corregi o anula los que sobran en la historia clinica."
+    )
 
 
 def f_constante_centro(episodio: Episodio, vigentes: list[Evento], arg: str | None) -> ProyeccionCampo:
@@ -369,16 +392,55 @@ FUNCIONES: dict[str, Callable[[Episodio, list[Evento], str | None], ProyeccionCa
 }
 
 
-def proyectar_fila(episodio: Episodio, eventos: list[Evento]) -> dict[str, ProyeccionCampo]:
+def _convertir(texto: str, tipo: str | None):
+    """Los ajustes se guardan como texto; se devuelven con el tipo del campo."""
+    if texto is None:
+        return None
+    if tipo == "entero":
+        return int(float(texto))
+    if tipo == "decimal":
+        return round(float(texto), 2)
+    return texto
+
+
+def proyectar_fila(
+    episodio: Episodio,
+    eventos: list[Evento],
+    ajustes: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, ProyeccionCampo]:
     """Proyecta los 49 campos de SATI-Q, en el orden del Anexo A4.
-    Devuelve un dict ordenado {nombre_campo: ProyeccionCampo}."""
+
+    'ajustes' son valores cargados a mano (ver db.ajustes_vigentes). Pisan lo
+    derivado, pero el valor derivado se conserva en valor_derivado y el ajuste
+    queda descripto en ajuste_manual: el reemplazo nunca es silencioso."""
     vigentes = eventos_vigentes(eventos)
+    ajustes = ajustes or {}
     fila: dict[str, ProyeccionCampo] = {}
+    aviso_egresos = _advertir_egresos_duplicados(vigentes)
+
     for campo in _CAMPOS_SCHEMA:
+        nombre = campo["nombre"]
         funcion = FUNCIONES.get(campo["funcion"])
         if funcion is None:
-            raise ErrorProyeccion(f"campo {campo['nombre']}: no hay funcion registrada para '{campo['funcion']}'")
-        fila[campo["nombre"]] = funcion(episodio, vigentes, campo.get("arg"))
+            raise ErrorProyeccion(f"campo {nombre}: no hay funcion registrada para '{campo['funcion']}'")
+        proyectado = funcion(episodio, vigentes, campo.get("arg"))
+
+        if aviso_egresos and "egreso" in campo["depende_de"]:
+            proyectado.advertencias.append(aviso_egresos)
+
+        ajuste = ajustes.get(nombre)
+        if ajuste is not None:
+            proyectado.valor_derivado = proyectado.valor
+            proyectado.ajuste_manual = ajuste
+            try:
+                proyectado.valor = _convertir(ajuste["valor"], campo.get("validacion", {}).get("tipo"))
+            except (TypeError, ValueError):
+                proyectado.advertencias.append(
+                    f"el valor cargado a mano ({ajuste['valor']!r}) no tiene el tipo esperado"
+                )
+
+        fila[nombre] = proyectado
+
     return fila
 
 

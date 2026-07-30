@@ -150,7 +150,9 @@
           "nota": "Todas las claves son opcionales. Se manda solo lo que el medico dicto. Un evento puede traer varias mediciones de un mismo momento.",
           "claves": {
             "temperatura_c": "Temperatura central, grados Celsius",
-            "pam_mmhg": "Presion arterial media, mmHg",
+            "tas_mmhg": "Presion arterial SISTOLICA, mmHg. Es lo que el medico dicta ('120 sobre 80'). Python calcula la media a partir de esta y la diastolica.",
+            "tad_mmhg": "Presion arterial DIASTOLICA, mmHg",
+            "pam_mmhg": "Presion arterial media, mmHg. Solo si el medico la dicta ya calculada; si no, se deriva de tas_mmhg y tad_mmhg.",
             "fc_lpm": "Frecuencia cardiaca, latidos por minuto",
             "fr_rpm": "Frecuencia respiratoria, respiraciones por minuto",
             "fio2": "Fraccion inspirada de oxigeno, 0.21 a 1.0. Define que rama de oxigenacion usa el APACHE II, asi que tiene que venir en el MISMO evento que el gas.",

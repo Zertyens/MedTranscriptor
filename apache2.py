@@ -111,7 +111,17 @@ def _puntos_por_rangos(valor: float, rangos: list[dict[str, Any]]) -> int:
 
 
 def _mediciones(evento: Evento) -> dict[str, Any]:
-    return evento.payload_json.get("mediciones", {}) or {}
+    """Las mediciones del evento, con la presion arterial media derivada.
+
+    El medico dicta '120 sobre 80', no la media. APACHE II usa la media, asi
+    que la calcula Python: PAM = (sistolica + 2 * diastolica) / 3. Si el
+    medico ya dicto la media, esa gana y no se toca."""
+    med = dict(evento.payload_json.get("mediciones", {}) or {})
+    if med.get("pam_mmhg") is None:
+        tas, tad = med.get("tas_mmhg"), med.get("tad_mmhg")
+        if tas is not None and tad is not None:
+            med["pam_mmhg"] = round((tas + 2 * tad) / 3, 1)
+    return med
 
 
 def _peor_simple(eventos: list[Evento], clave: str) -> ComponenteApache:

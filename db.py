@@ -1,13 +1,26 @@
 """
-Persistencia insert-only para episodio y evento.
-No hay UPDATE ni DELETE en este archivo, a proposito: los eventos son
-inmutables. Corregir = insert_evento() con corrige_a_evento_id apuntando
-al evento viejo.
+Persistencia de episodio y evento.
+
+LOS EVENTOS SON INMUTABLES. No hay UPDATE ni DELETE sobre 'evento' en este
+archivo, a proposito: corregir = insert_evento() con corrige_a_evento_id
+apuntando al evento viejo.
+
+EL EPISODIO SI SE PUEDE CORREGIR, y la diferencia no es un descuido. El
+episodio no es un movimiento clinico: es la cabecera administrativa de la
+cuenta (edad, sexo, motivo de ingreso). Si se tipeo mal la edad al admitir,
+eso es un error de carga, no un hecho clinico que haya que contraasentar.
+
+Pero corregirlo NO es gratis: la edad alimenta los puntos de edad del
+APACHE II, asi que un cambio silencioso alteraria un puntaje de gravedad sin
+dejar rastro. Por eso actualizar_episodio() escribe ademas una fila por cada
+campo modificado en 'episodio_cambio', con el valor anterior, el nuevo, quien
+lo cambio y cuando. Nada desaparece.
 """
 from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +58,38 @@ CREATE TABLE IF NOT EXISTS evento (
 );
 
 CREATE INDEX IF NOT EXISTS idx_evento_episodio ON evento(episodio_id);
+
+-- Auditoria de correcciones a la cabecera del episodio. Insert-only:
+-- una fila por campo corregido, para que ninguna edicion sea silenciosa.
+CREATE TABLE IF NOT EXISTS episodio_cambio (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    episodio_id     TEXT NOT NULL REFERENCES episodio(id),
+    campo           TEXT NOT NULL,
+    valor_anterior  TEXT,
+    valor_nuevo     TEXT,
+    autor           TEXT NOT NULL,
+    timestamp       TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_cambio_episodio ON episodio_cambio(episodio_id);
+
+-- Valores del reporte cargados a mano, pisando lo que da la proyeccion.
+-- Existe porque a veces el medico sabe algo que los registros no sostienen y
+-- SATI-Q exige un valor igual. NO se mezcla con los eventos: un ajuste no es
+-- un hecho clinico, es una correccion al reporte, y tiene que verse distinto.
+-- Insert-only: para volver atras se inserta una fila con anulado=1.
+CREATE TABLE IF NOT EXISTS ajuste_manual (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    episodio_id  TEXT NOT NULL REFERENCES episodio(id),
+    campo        TEXT NOT NULL,
+    valor        TEXT,
+    motivo       TEXT,
+    autor        TEXT NOT NULL,
+    timestamp    TEXT NOT NULL,
+    anulado      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_ajuste_episodio ON ajuste_manual(episodio_id);
 """
 
 
@@ -90,6 +135,99 @@ def insert_evento(con: sqlite3.Connection, evento: Evento) -> str:
     )
     con.commit()
     return evento.id
+
+
+# Lo unico que se puede corregir del episodio. Ni el id ni el idcentro:
+# corregir esos seria otro episodio, no una correccion.
+CAMPOS_CORREGIBLES = frozenset({
+    "idpaciente", "reingreso", "fecha_ingreso", "hora_ingreso",
+    "edad", "sexo", "moting", "procedencia", "enfermedad_cronica_grave",
+})
+
+
+def actualizar_episodio(
+    con: sqlite3.Connection, episodio: Episodio, cambios: dict[str, Any], autor: str
+) -> list[str]:
+    """Corrige la cabecera del episodio dejando auditoria de cada campo.
+
+    Devuelve la descripcion de los cambios aplicados. Los campos que no
+    cambiaron de valor no se tocan ni se registran."""
+    invalidos = set(cambios) - CAMPOS_CORREGIBLES
+    if invalidos:
+        raise ValueError(f"campos no corregibles: {sorted(invalidos)}")
+
+    actuales = episodio.to_dict()
+    efectivos = {c: v for c, v in cambios.items() if actuales.get(c) != v}
+    if not efectivos:
+        return []
+
+    # Se revalida el episodio completo antes de guardar: una edad de 8 anios
+    # en un adulto tiene que rebotar aca, no al exportar el CSV.
+    Episodio.from_dict({**actuales, **efectivos})
+
+    ahora = datetime.now().isoformat(timespec="seconds")
+    resumen: list[str] = []
+    for campo, nuevo in efectivos.items():
+        con.execute(
+            """INSERT INTO episodio_cambio
+               (episodio_id, campo, valor_anterior, valor_nuevo, autor, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (episodio.id, campo, str(actuales.get(campo)), str(nuevo), autor, ahora),
+        )
+        valor = int(nuevo) if isinstance(nuevo, bool) else nuevo
+        con.execute(f"UPDATE episodio SET {campo} = ? WHERE id = ?", (valor, episodio.id))
+        resumen.append(f"{campo}: {actuales.get(campo)} → {nuevo}")
+
+    con.commit()
+    return resumen
+
+
+def historial_episodio(con: sqlite3.Connection, episodio_id: str) -> list[dict[str, Any]]:
+    filas = con.execute(
+        "SELECT * FROM episodio_cambio WHERE episodio_id = ? ORDER BY id DESC",
+        (episodio_id,),
+    ).fetchall()
+    return [dict(f) for f in filas]
+
+
+def insert_ajuste(
+    con: sqlite3.Connection, episodio_id: str, campo: str, valor: Any,
+    motivo: str, autor: str, anulado: bool = False,
+) -> None:
+    """Registra un valor cargado a mano para un campo del reporte."""
+    con.execute(
+        """INSERT INTO ajuste_manual
+           (episodio_id, campo, valor, motivo, autor, timestamp, anulado)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (episodio_id, campo, None if valor is None else str(valor), motivo, autor,
+         datetime.now().isoformat(timespec="seconds"), int(anulado)),
+    )
+    con.commit()
+
+
+def ajustes_vigentes(con: sqlite3.Connection, episodio_id: str) -> dict[str, dict[str, Any]]:
+    """El ajuste vigente por campo: gana el ultimo insertado, salvo que ese
+    ultimo sea una anulacion. Las filas viejas no se borran nunca."""
+    filas = con.execute(
+        "SELECT * FROM ajuste_manual WHERE episodio_id = ? ORDER BY id",
+        (episodio_id,),
+    ).fetchall()
+    vigentes: dict[str, dict[str, Any]] = {}
+    for f in filas:
+        d = dict(f)
+        if d["anulado"]:
+            vigentes.pop(d["campo"], None)
+        else:
+            vigentes[d["campo"]] = d
+    return vigentes
+
+
+def historial_ajustes(con: sqlite3.Connection, episodio_id: str) -> list[dict[str, Any]]:
+    filas = con.execute(
+        "SELECT * FROM ajuste_manual WHERE episodio_id = ? ORDER BY id DESC",
+        (episodio_id,),
+    ).fetchall()
+    return [dict(f) for f in filas]
 
 
 def get_episodio(con: sqlite3.Connection, episodio_id: str) -> Episodio | None:

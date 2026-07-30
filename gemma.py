@@ -114,6 +114,9 @@ class ResultadoTraduccion:
     rechazados: list[dict[str, Any]] = field(default_factory=list)
     descartes: list[str] = field(default_factory=list)
     correcciones: list[str] = field(default_factory=list)
+    # Datos de cabecera que la nota mencione: quien firma y cuando ingreso el
+    # paciente. No son eventos; la app decide si los aplica al episodio.
+    metadatos: dict[str, Any] = field(default_factory=dict)
     respuesta_cruda: str = ""
     segundos: float = 0.0
 
@@ -362,6 +365,14 @@ DISPOSITIVOS QUE YA ESTAN COLOCADOS EN ESTE PACIENTE
 Si la nota menciona que se retira uno de estos, usa EXACTAMENTE su instancia_id.
 Si menciona que se coloca uno nuevo, inventa el siguiente numero libre.
 
+METADATOS. Si la nota dice alguna de estas cosas, ponelas en "metadatos".
+Si no las dice, dejalas en null. NO son eventos, son datos de la cabecera:
+  - autor: el nombre del profesional, si se identifica ("habla el doctor
+    Gonzalez", "soy la doctora Perez"). Devolve SOLO el nombre, sin el titulo.
+  - fecha_ingreso / hora_ingreso: SOLO si la nota dice cuando INGRESO el
+    paciente a la unidad ("ingreso el 29 del 7 a las 16 horas"). No confundir
+    con la fecha de la nota ni con la de otros hechos.
+
 FORMATO DE SALIDA. Devolve SOLO este JSON, sin texto antes ni despues.
 El campo "corrige" es obligatorio: va en false salvo que ese evento corrija
 algo anotado antes.
@@ -371,7 +382,8 @@ algo anotado antes.
       "payload": {{}}, "confianza": 0.0, "texto_crudo": "fragmento literal",
       "corrige": false}}
   ],
-  "no_entendido": ["fragmentos que no pudiste mapear o fechar"]
+  "no_entendido": ["fragmentos que no pudiste mapear o fechar"],
+  "metadatos": {{"autor": null, "fecha_ingreso": null, "hora_ingreso": null}}
 }}
 
 EJEMPLO DE TISS (la fecha es obligatoria en el payload):
@@ -561,10 +573,12 @@ def traducir_nota(
     )
     datos = _extraer_json(crudo)
 
+    meta = datos.get("metadatos") or {}
     resultado = ResultadoTraduccion(
         no_entendido=list(datos.get("no_entendido") or []),
         respuesta_cruda=crudo,
         segundos=round(time.time() - inicio, 1),
+        metadatos={k: v for k, v in meta.items() if v not in (None, "", "null")},
     )
 
     marcados: list[tuple[Evento, bool]] = []
@@ -593,6 +607,60 @@ def traducir_nota(
     # Gemma marca cual evento corrige; Python resuelve a cual.
     resultado.correcciones = _resolver_correcciones(marcados, eventos_previos)
     return resultado
+
+
+# ---------------------------------------------------------------------------
+# 1.b ADMITE — el ingreso tambien se dicta
+# ---------------------------------------------------------------------------
+
+SISTEMA_INGRESO = """Sos un asistente de admision de una Unidad de Cuidados Intensivos.
+Convertis lo que dicta el medico al admitir un paciente en los datos de ingreso.
+
+REGLAS
+- Solo lo que la nota diga. Lo que no se menciona va en null, NO lo inventes
+  ni lo completes con un valor tipico.
+- La edad va en anios cumplidos, como numero entero.
+- El sexo es M, F u O.
+- fecha_ingreso en aaaa-mm-dd y hora_ingreso en HH:mm:ss. Si la nota dice
+  "hoy" o "recien", usa la fecha de referencia. Si no dice la hora, null.
+- enfermedad_cronica_grave es true SOLO si menciona una insuficiencia organica
+  severa previa o inmunocompromiso (cirrotico, dialisis cronica, oncologico en
+  tratamiento, trasplantado, EPOC severo). Ante la duda, false.
+
+MOTIVO DE INGRESO (moting), elegi el numero:
+{motivos}
+
+PROCEDENCIA, elegi el numero:
+{procedencias}
+
+FORMATO DE SALIDA. Devolve SOLO este JSON, sin texto antes ni despues:
+{{
+  "edad": null, "sexo": null, "moting": null, "procedencia": null,
+  "fecha_ingreso": null, "hora_ingreso": null,
+  "enfermedad_cronica_grave": false,
+  "reingreso": false,
+  "confianza": 0.0,
+  "no_entendido": ["lo que no pudiste mapear"]
+}}"""
+
+
+def interpretar_ingreso(nota: str, fecha_referencia: str) -> dict[str, Any]:
+    """Extrae los datos administrativos del ingreso de una nota dictada.
+
+    Devuelve solo lo que la nota dice: los campos ausentes quedan en None y
+    los completa el humano. Admitir un paciente con datos inventados es peor
+    que admitirlo con datos faltantes."""
+    from catalogos import MOTIVOS_INGRESO, PROCEDENCIAS
+
+    sistema = SISTEMA_INGRESO.format(
+        motivos="\n".join(f"  {k} = {v}" for k, v in MOTIVOS_INGRESO.items()),
+        procedencias="\n".join(f"  {k} = {v}" for k, v in PROCEDENCIAS.items()),
+    )
+    datos = _extraer_json(_llamar(
+        f"FECHA DE REFERENCIA: {fecha_referencia}\n\nNOTA DE ADMISION:\n{nota}",
+        sistema=sistema,
+    ))
+    return {k: v for k, v in datos.items() if v not in ("", "null")}
 
 
 # ---------------------------------------------------------------------------

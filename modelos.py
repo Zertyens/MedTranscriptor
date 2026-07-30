@@ -52,6 +52,13 @@ class Episodio:
             )
         if self.sexo not in ("M", "F", "O"):
             raise ErrorValidacion(f"sexo invalido: {self.sexo}")
+        # El rango de edad estaba declarado en satiq_campos.json pero solo lo
+        # aplicaba el validador de la fila, o sea al exportar. Un episodio con
+        # una edad imposible se podia crear igual y recien reventaba al final.
+        if not (16 <= self.edad <= 150):
+            raise ErrorValidacion(
+                f"edad invalida para un adulto: {self.edad} (debe estar entre 16 y 150 anios)"
+            )
         if self.moting not in (1, 2, 3, 4, 99):
             raise ErrorValidacion(f"moting invalido: {self.moting}")
         if not (1 <= self.procedencia <= 14):
